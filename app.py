@@ -100,76 +100,154 @@ def generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tok
     thread.join()
 
 
-# Full-Screen Interactive HTML UI with Slide-Over Drawers
+# Full Native In-Page Strudel REPL with Slide-Over Drawers
 FULL_SCREEN_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<title>Strudel AI Studio</title>
+<!-- CodeMirror CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+
+<!-- Strudel Web Core -->
+<script src="https://unpkg.com/@strudel/web@latest"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body, html { width: 100%; height: 100%; overflow: hidden; background: #0b0b0d; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #e8e6e1; }
-  
-  /* Full screen Strudel REPL */
-  #strudel-frame {
+  body, html { width: 100vw; height: 100vh; overflow: hidden; background: #0b0b0f; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #e8e6e1; }
+
+  /* App Layout */
+  #app-root {
+    display: flex;
+    flex-direction: column;
     width: 100vw;
     height: 100vh;
-    border: none;
-    display: block;
   }
 
-  /* Floating top action bar */
-  .top-action-bar {
-    position: fixed;
-    top: 6px;
-    right: 80px;
-    z-index: 9999;
+  /* Top Navigation Bar */
+  .navbar {
+    height: 42px;
+    background: #121217;
+    border-bottom: 1px solid #23232a;
     display: flex;
-    gap: 8px;
-    background: rgba(18, 18, 22, 0.85);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 24px;
-    padding: 4px 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 100;
+  }
+
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo {
+    font-size: 15px;
+    font-weight: 800;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: -0.3px;
+  }
+  .logo-tag {
+    font-size: 10px;
+    background: #3b82f6;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+
+  .nav-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .nav-btn {
-    background: transparent;
-    border: 1px solid transparent;
+    background: #1c1c24;
+    border: 1px solid #2e2e3a;
     color: #e8e6e1;
     padding: 5px 12px;
-    border-radius: 18px;
+    border-radius: 6px;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 6px;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
   }
-  .nav-btn:hover { background: rgba(255,255,255,0.1); }
-  .nav-btn.play-btn { color: #4ade80; border-color: rgba(74, 222, 128, 0.35); background: rgba(74, 222, 128, 0.12); font-weight: 700; }
+  .nav-btn:hover { background: #282834; border-color: #434354; }
+
+  .nav-btn.play-btn { color: #4ade80; border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.12); font-weight: 700; }
   .nav-btn.play-btn:hover { background: rgba(74, 222, 128, 0.25); }
   .nav-btn.play-btn.playing { color: #f87171; border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.2); }
-  .nav-btn.update-btn { color: #facc15; border-color: rgba(250, 204, 21, 0.35); background: rgba(250, 204, 21, 0.12); font-weight: 700; }
+
+  .nav-btn.update-btn { color: #facc15; border-color: rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.12); font-weight: 700; }
   .nav-btn.update-btn:hover { background: rgba(250, 204, 21, 0.25); }
-  .nav-btn.ai-btn { color: #60a5fa; border-color: rgba(96, 165, 250, 0.3); background: rgba(96, 165, 250, 0.1); }
-  .nav-btn.ai-btn:hover { background: rgba(96, 165, 250, 0.25); }
-  .nav-btn.daw-btn { color: #c084fc; border-color: rgba(192, 132, 252, 0.3); background: rgba(192, 132, 252, 0.1); }
-  .nav-btn.daw-btn:hover { background: rgba(192, 132, 252, 0.25); }
-  .nav-btn.panic-btn { color: #f87171; }
+
+  .nav-btn.ai-btn { color: #60a5fa; border-color: rgba(96, 165, 250, 0.4); background: rgba(96, 165, 250, 0.15); font-weight: 700; }
+  .nav-btn.ai-btn:hover { background: rgba(96, 165, 250, 0.28); }
+
+  .nav-btn.daw-btn { color: #c084fc; border-color: rgba(192, 132, 252, 0.4); background: rgba(192, 132, 252, 0.15); font-weight: 700; }
+  .nav-btn.daw-btn:hover { background: rgba(192, 132, 252, 0.28); }
+
+  .nav-btn.panic-btn { color: #f87171; font-weight: 600; }
+
+  /* Editor Container */
+  #editor-container {
+    flex: 1;
+    width: 100vw;
+    height: calc(100vh - 42px);
+    position: relative;
+    background: #0b0b0f;
+  }
+
+  .CodeMirror {
+    width: 100%;
+    height: 100% !important;
+    font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    background: #0b0b0f !important;
+  }
+  .CodeMirror-gutters {
+    background: #0e0e13 !important;
+    border-right: 1px solid #1a1a24;
+  }
+
+  /* Status Bar */
+  .status-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 20px;
+    z-index: 50;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 11px;
+    color: #60a5fa;
+    background: rgba(18, 18, 24, 0.85);
+    backdrop-filter: blur(8px);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #282836;
+  }
 
   /* Slide-Over Drawer Overlay */
   .drawer-overlay {
     position: fixed;
     top: 0;
-    right: -480px;
-    width: 460px;
+    right: -500px;
+    width: 480px;
     height: 100vh;
-    background: #141418;
-    border-left: 1px solid #2a2a30;
-    box-shadow: -10px 0 30px rgba(0,0,0,0.7);
+    background: #14141c;
+    border-left: 1px solid #2d2d3c;
+    box-shadow: -12px 0 35px rgba(0,0,0,0.8);
     z-index: 10000;
     transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
@@ -179,7 +257,7 @@ FULL_SCREEN_HTML = """
 
   .drawer-header {
     padding: 16px;
-    border-bottom: 1px solid #232328;
+    border-bottom: 1px solid #23232f;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -194,7 +272,7 @@ FULL_SCREEN_HTML = """
     padding: 4px 8px;
     border-radius: 6px;
   }
-  .close-btn:hover { color: #fff; background: #232328; }
+  .close-btn:hover { color: #fff; background: #23232f; }
 
   .drawer-body {
     padding: 16px;
@@ -285,61 +363,73 @@ FULL_SCREEN_HTML = """
   .btn-inject:hover { background: #047857 !important; }
 
   .code-preview {
-    background: #09090b;
-    border: 1px solid #232328;
-    border-radius: 6px;
-    padding: 10px;
+    background: #09090e;
+    border: 1px solid #23232f;
+    border-radius: 8px;
+    padding: 12px;
     font-family: ui-monospace, Menlo, monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: #38bdf8;
-    max-height: 180px;
+    max-height: 200px;
     overflow-y: auto;
     white-space: pre-wrap;
   }
 
   .preset-chip {
-    background: #1a1a20;
-    border: 1px solid #2a2a32;
+    background: #1a1a24;
+    border: 1px solid #2e2e3e;
     color: #cfcdc6;
-    padding: 4px 8px;
+    padding: 5px 10px;
     border-radius: 12px;
-    font-size: 10.5px;
+    font-size: 11px;
     cursor: pointer;
   }
-  .preset-chip:hover { background: #262630; color: #fff; }
+  .preset-chip:hover { background: #2b2b3c; color: #fff; }
 
   .table-matrix { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .table-matrix td { padding: 4px 6px; border-bottom: 1px solid #1f1f24; }
+  .table-matrix td { padding: 6px 8px; border-bottom: 1px solid #1f1f2a; }
   .ch-badge { font-weight: 700; font-family: monospace; }
 </style>
 </head>
 <body>
 
-<!-- 100% Full Official Interactive Strudel REPL -->
-<iframe
-  id="strudel-frame"
-  src="https://strudel.cc"
-  allow="midi; microphone; audio-capture"
-></iframe>
+<div id="app-root">
+  <!-- Top Navigation & Transport Bar -->
+  <div class="navbar">
+    <div class="nav-left">
+      <div class="logo">
+        <span>strudel</span>
+        <span class="logo-tag">AI Studio</span>
+      </div>
+      <div class="nav-controls">
+        <button id="btn-play-toggle" class="nav-btn play-btn" onclick="togglePlayback()" title="Play / Stop (Ctrl+.)">
+          <span id="play-icon">▶</span>
+          <span id="play-text">play</span>
+        </button>
+        <button class="nav-btn update-btn" onclick="triggerEvaluate()" title="Update Pattern (Ctrl+Enter)">
+          <span>⚡ update</span>
+        </button>
+      </div>
+    </div>
 
-<!-- Floating Navigation & Transport Bar -->
-<div class="top-action-bar">
-  <button id="btn-play-toggle" class="nav-btn play-btn" onclick="togglePlayback()" title="Play / Stop Pattern (Ctrl+.)">
-    <span id="play-icon">▶</span>
-    <span id="play-text">play</span>
-  </button>
-  <button class="nav-btn update-btn" onclick="triggerUpdate()" title="Update Pattern (Ctrl+Enter)">
-    <span>⚡ update</span>
-  </button>
-  <button class="nav-btn ai-btn" onclick="openDrawer('ai')">
-    <span>✨ AI Copilot</span>
-  </button>
-  <button class="nav-btn daw-btn" onclick="openDrawer('daw')">
-    <span>🎹 13-CH DAW Arranger</span>
-  </button>
-  <button class="nav-btn panic-btn" onclick="triggerPanic()" title="Send All Notes Off">
-    <span>🛑 Panic</span>
-  </button>
+    <div class="nav-controls">
+      <button class="nav-btn ai-btn" onclick="openDrawer('ai')">
+        <span>✨ AI Copilot</span>
+      </button>
+      <button class="nav-btn daw-btn" onclick="openDrawer('daw')">
+        <span>🎹 13-CH DAW Arranger</span>
+      </button>
+      <button class="nav-btn panic-btn" onclick="triggerPanic()" title="Send All Notes Off">
+        <span>🛑 Panic</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Full-Screen Native CodeMirror Strudel REPL -->
+  <div id="editor-container">
+    <textarea id="strudel-editor"></textarea>
+    <div id="status-bar" class="status-bar">Press ▶ play or Ctrl+Enter to start!</div>
+  </div>
 </div>
 
 <!-- Slide-Over Drawer: AI Music Copilot -->
@@ -395,7 +485,7 @@ FULL_SCREEN_HTML = """
       <label>AI Generated Code</label>
       <pre id="ai-output" class="code-preview"></pre>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-        <button class="btn-inject" onclick="injectIntoStrudel(true)">⚡ Inject to Strudel REPL</button>
+        <button class="btn-inject" onclick="injectIntoStrudel(true)">⚡ Inject to Editor & Play</button>
         <button class="btn-primary" style="background:#27272a;" onclick="copyAiCode()">📋 Copy Code</button>
       </div>
     </div>
@@ -462,13 +552,112 @@ FULL_SCREEN_HTML = """
     </div>
 
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; padding-top:4px;">
-      <button class="btn-inject" onclick="injectDawArrangement()">⚡ Load into Strudel</button>
+      <button class="btn-inject" onclick="injectDawArrangement()">⚡ Load into Editor & Play</button>
       <button class="btn-primary" style="background:#4c1d95;" onclick="downloadDawMidi()">💾 Download .MID</button>
     </div>
   </div>
 </div>
 
 <script>
+// Initialize Native CodeMirror Editor
+const INITIAL_TUNE = `// Strudel Live Coding Pattern
+setcpm(130/4) // 130 bpm
+
+stack(
+  s("bd*4").note(36).gain(1).midichan(1),
+  s("~ hh ~ hh").note(42).midichan(2),
+  s("~ cp ~ cp").note(39).gain(0.9).midichan(5),
+  note("<c2 c2 eb2 f2>*8").s("sawtooth").lpf(sine.range(300,900).slow(8)).struct("t(5,8)").midichan(7),
+  note("<[c4,eb4,g4] [ab3,c4,eb4]>").s("sawtooth").attack(0.01).release(0.3).struct("~ t").midichan(9)
+).midi('IAC Driver')`;
+
+const cmEditor = CodeMirror.fromTextArea(document.getElementById('strudel-editor'), {
+  mode: 'javascript',
+  theme: 'material-darker',
+  lineNumbers: true,
+  lineWrapping: true,
+  tabSize: 2,
+  autofocus: true
+});
+cmEditor.setValue(INITIAL_TUNE);
+
+// Initialize Strudel Sound Engine
+let isPlaying = false;
+let strudelReady = false;
+
+window.addEventListener('DOMContentLoaded', async () => {
+  if (window.strudel && window.strudel.initStrudel) {
+    await window.strudel.initStrudel({
+      prebake: () => window.strudel.samples && window.strudel.samples('github:tidalcycles/dirt-samples')
+    });
+    strudelReady = true;
+  }
+  refreshMidi();
+});
+
+function togglePlayback() {
+  if (isPlaying) {
+    stopPlayback();
+  } else {
+    startPlayback();
+  }
+}
+
+function startPlayback() {
+  const code = cmEditor.getValue();
+  if (window.strudel && window.strudel.evaluate) {
+    try {
+      window.strudel.evaluate(code);
+      isPlaying = true;
+      updatePlayButtonUI(true);
+      document.getElementById('status-bar').innerText = "🔊 Playing pattern live...";
+    } catch(err) {
+      document.getElementById('status-bar').innerText = "⚠️ Error: " + err.message;
+    }
+  }
+}
+
+function stopPlayback() {
+  if (window.strudel && window.strudel.hush) {
+    window.strudel.hush();
+  }
+  isPlaying = false;
+  updatePlayButtonUI(false);
+  document.getElementById('status-bar').innerText = "⏹️ Stopped.";
+}
+
+function triggerEvaluate() {
+  startPlayback();
+}
+
+function updatePlayButtonUI(playing) {
+  const btn = document.getElementById('btn-play-toggle');
+  const icon = document.getElementById('play-icon');
+  const text = document.getElementById('play-text');
+  if (playing) {
+    icon.innerText = '⏹';
+    text.innerText = 'stop';
+    btn.classList.add('playing');
+  } else {
+    icon.innerText = '▶';
+    text.innerText = 'play';
+    btn.classList.remove('playing');
+  }
+}
+
+// Global hotkeys (Ctrl+Enter / Cmd+Enter for evaluate, Ctrl+. / Cmd+. for stop)
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    triggerEvaluate();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === '.') {
+    e.preventDefault();
+    stopPlayback();
+  }
+});
+
+// Drawer Functions
 function openDrawer(id) {
   closeDrawer('ai');
   closeDrawer('daw');
@@ -512,7 +701,7 @@ async function generateAiPattern() {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: [prompt, "", genre, parseInt(bpm), 0.7, 1024] })
+      body: JSON.stringify({ data: [prompt, cmEditor.getValue(), genre, parseInt(bpm), 0.7, 1024] })
     });
     const data = await res.json();
     let code = Array.isArray(data.data) ? data.data[0] : (data.code || JSON.stringify(data));
@@ -524,7 +713,6 @@ async function generateAiPattern() {
     document.getElementById('ai-output-container').style.display = 'flex';
     status.innerText = "✅ Pattern generated successfully!";
   } catch (e) {
-    // Fallback template
     activeGeneratedCode = `setcpm(${bpm}/4)\n\nconst kick = s("bd*4").note(36).midichan(1)\nconst hats = s("~ hh ~ hh").note(42).midichan(2)\nconst bass = note("<c2 c2 eb2 f2>*8").s("sawtooth").lpf(sine.range(300,900).slow(8)).struct("t(5,8)").midichan(7)\nconst chords = note("<[c4,eb4,g4] [ab3,c4,eb4]>").s("sawtooth").attack(0.01).release(0.3).struct("~ t").midichan(9)\n\nstack(kick, hats, bass, chords).midi('IAC Driver')`;
     document.getElementById('ai-output').innerText = activeGeneratedCode;
     document.getElementById('ai-output-container').style.display = 'flex';
@@ -537,10 +725,9 @@ async function generateAiPattern() {
 
 function injectIntoStrudel() {
   if (!activeGeneratedCode) return;
-  const frame = document.getElementById('strudel-frame');
-  frame.contentWindow.postMessage(activeGeneratedCode, '*');
-  navigator.clipboard.writeText(activeGeneratedCode);
-  document.getElementById('ai-status').innerText = "⚡ Injected! Copied to clipboard for immediate paste (Ctrl+V / Cmd+V).";
+  cmEditor.setValue(activeGeneratedCode);
+  closeDrawer('ai');
+  startPlayback();
 }
 
 function copyAiCode() {
@@ -557,10 +744,9 @@ const DAW_CODE = {
 function injectDawArrangement() {
   const g = document.getElementById('daw-genre').value;
   const code = DAW_CODE[g] || DAW_CODE.progHouse;
-  const frame = document.getElementById('strudel-frame');
-  frame.contentWindow.postMessage(code, '*');
-  navigator.clipboard.writeText(code);
-  alert('⚡ 13-Channel Arrangement injected and copied to clipboard!');
+  cmEditor.setValue(code);
+  closeDrawer('daw');
+  startPlayback();
 }
 
 function testNote(ch, note) {
@@ -577,6 +763,7 @@ function testNote(ch, note) {
 }
 
 function triggerPanic() {
+  stopPlayback();
   if (navigator.requestMIDIAccess) {
     navigator.requestMIDIAccess().then(access => {
       access.outputs.forEach(out => {
@@ -603,44 +790,6 @@ function refreshMidi() {
     });
   }
 }
-
-let isPlaying = false;
-function togglePlayback() {
-  isPlaying = !isPlaying;
-  const frame = document.getElementById('strudel-frame');
-  const btn = document.getElementById('btn-play-toggle');
-  const icon = document.getElementById('play-icon');
-  const text = document.getElementById('play-text');
-
-  if (isPlaying) {
-    frame.contentWindow.postMessage('play', '*');
-    icon.innerText = '⏹';
-    text.innerText = 'stop';
-    btn.classList.add('playing');
-  } else {
-    frame.contentWindow.postMessage('stop', '*');
-    icon.innerText = '▶';
-    text.innerText = 'play';
-    btn.classList.remove('playing');
-  }
-}
-
-function triggerUpdate() {
-  const frame = document.getElementById('strudel-frame');
-  frame.contentWindow.postMessage('evaluate', '*');
-}
-
-// Global hotkeys (Ctrl+Enter / Cmd+Enter for evaluate, Ctrl+. / Cmd+. for stop)
-window.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-    e.preventDefault();
-    triggerUpdate();
-  }
-  if ((e.ctrlKey || e.metaKey) && e.key === '.') {
-    e.preventDefault();
-    togglePlayback();
-  }
-});
 </script>
 
 </body>
