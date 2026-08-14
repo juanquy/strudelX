@@ -1,21 +1,23 @@
-FROM node:24
+FROM node:20-slim
 
 WORKDIR /app
 
-RUN npm install pnpm --global
+# Install pnpm
+RUN npm install -g pnpm
 
-COPY pnpm-workspace.yaml ./
-COPY package.json pnpm-lock.yaml ./
+# Copy repository dependency manifests
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/ ./packages/
-COPY examples/ ./examples/
-RUN mkdir -p website/public
 COPY website/package.json ./website/
 
+# Install dependencies across monorepo
 RUN pnpm install
 
-
+# Copy full source
 COPY . .
 
-EXPOSE 4321
+# Expose Hugging Face default port 7860
+EXPOSE 7860
 
-CMD ["pnpm", "dev"]
+# Launch the official Strudel REPL web server
+CMD ["pnpm", "--filter", "@strudel/website", "dev", "--host", "0.0.0.0", "--port", "7860"]

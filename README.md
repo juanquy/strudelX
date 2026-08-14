@@ -3,12 +3,11 @@ title: Strudel AI Studio
 emoji: 🎵
 colorFrom: blue
 colorTo: indigo
-sdk: gradio
-sdk_version: 5.16.0
-app_file: app.py
+sdk: docker
+app_port: 7860
 pinned: false
 license: agpl-3.0
-short_description: AI live-coding music copilot and 13-channel DAW arranger
+short_description: Full Strudel live-coding web REPL with integrated AI Copilot and 13-channel DAW arranger
 ---
 
 # strudel
