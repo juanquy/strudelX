@@ -100,57 +100,55 @@ def generate_strudel_code(prompt, current_code, genre, bpm, temperature=0.7, max
 
     thread.join()
 
-    # Clean markdown if present
     m = re.search(r'```(?:javascript|js)?([\s\S]*?)```', accumulated_text)
     if m:
         return m.group(1).strip()
     return accumulated_text.strip()
 
 
-# Self-Contained Complete Strudel REPL with zero iframe restrictions
-EMBEDDED_APP_HTML = """
+FULL_SCREEN_APP_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Strudel AI Studio</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
-<script src="https://unpkg.com/@strudel/web@latest"></script>
-
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body, html { width: 100vw; height: 100vh; overflow: hidden; background: #0e0e13; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #e8e6e1; }
-
-  #app { display: flex; flex-direction: column; width: 100vw; height: 100vh; }
-
-  /* Navbar */
-  .navbar {
-    height: 46px;
-    background: #15151c;
-    border-bottom: 1px solid #282834;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    z-index: 100;
+  body, html { width: 100vw; height: 100vh; overflow: hidden; background: #0b0b0d; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #e8e6e1; }
+  
+  /* Official Authentic Strudel REPL Frame */
+  #strudel-repl-frame {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    display: block;
+    background: #0b0b0d;
   }
 
-  .nav-left { display: flex; align-items: center; gap: 14px; }
-  .logo { font-size: 16px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 8px; }
-  .logo-tag { font-size: 10px; background: #2563eb; color: #fff; padding: 2px 6px; border-radius: 8px; font-weight: 700; }
+  /* Floating top-right overlay controls for enhancements */
+  .enhancement-bar {
+    position: fixed;
+    top: 6px;
+    right: 16px;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(18, 18, 24, 0.92);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 24px;
+    padding: 4px 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.75);
+  }
 
-  .nav-controls { display: flex; align-items: center; gap: 8px; }
-
-  .btn {
-    background: #1e1e28;
-    border: 1px solid #363646;
+  .enh-btn {
+    background: #1c1c24;
+    border: 1px solid #333342;
     color: #e8e6e1;
-    padding: 7px 16px;
-    border-radius: 6px;
-    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 18px;
+    font-size: 12px;
     font-weight: 700;
     cursor: pointer;
     display: flex;
@@ -158,45 +156,18 @@ EMBEDDED_APP_HTML = """
     gap: 6px;
     transition: all 0.15s ease;
   }
-  .btn:hover { background: #2b2b3a; border-color: #505064; }
+  .enh-btn:hover { background: #2a2a36; border-color: #4a4a5e; }
 
-  .btn-play { color: #4ade80; border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.14); }
-  .btn-play:hover { background: rgba(74, 222, 128, 0.28); }
-  .btn-play.playing { color: #f87171; border-color: rgba(248, 113, 113, 0.45); background: rgba(248, 113, 113, 0.2); }
+  .enh-btn.ai-btn { color: #60a5fa; border-color: rgba(96, 165, 250, 0.45); background: rgba(96, 165, 250, 0.16); }
+  .enh-btn.ai-btn:hover { background: rgba(96, 165, 250, 0.32); }
 
-  .btn-update { color: #facc15; border-color: rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.14); }
-  .btn-update:hover { background: rgba(250, 204, 21, 0.28); }
+  .enh-btn.daw-btn { color: #c084fc; border-color: rgba(192, 132, 252, 0.45); background: rgba(192, 132, 252, 0.16); }
+  .enh-btn.daw-btn:hover { background: rgba(192, 132, 252, 0.32); }
 
-  .btn-ai { color: #60a5fa; border-color: rgba(96, 165, 250, 0.4); background: rgba(96, 165, 250, 0.14); }
-  .btn-ai:hover { background: rgba(96, 165, 250, 0.28); }
-
-  .btn-daw { color: #c084fc; border-color: rgba(192, 132, 252, 0.4); background: rgba(192, 132, 252, 0.14); }
-  .btn-daw:hover { background: rgba(192, 132, 252, 0.28); }
-
-  .btn-panic { color: #ef4444; border-color: rgba(239, 68, 68, 0.35); }
-
-  /* Code Editor */
-  #editor-container { flex: 1; height: calc(100vh - 46px); position: relative; }
-  .CodeMirror { width: 100%; height: 100% !important; font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace; font-size: 15px; line-height: 1.6; background: #0e0e13 !important; }
-  .CodeMirror-gutters { background: #121218 !important; border-right: 1px solid #23232e; }
-
-  .status-pill {
-    position: absolute;
-    bottom: 12px;
-    left: 20px;
-    z-index: 50;
-    font-family: ui-monospace, Menlo, monospace;
-    font-size: 11.5px;
-    color: #60a5fa;
-    background: rgba(18, 18, 24, 0.9);
-    backdrop-filter: blur(8px);
-    padding: 5px 12px;
-    border-radius: 6px;
-    border: 1px solid #2d2d3c;
-  }
+  .enh-btn.panic-btn { color: #ef4444; border-color: rgba(239, 68, 68, 0.4); }
 
   /* Slide-Over Drawers */
-  .drawer {
+  .drawer-overlay {
     position: fixed;
     top: 0;
     right: -520px;
@@ -205,12 +176,12 @@ EMBEDDED_APP_HTML = """
     background: #14141c;
     border-left: 1px solid #2d2d3c;
     box-shadow: -14px 0 40px rgba(0,0,0,0.85);
-    z-index: 10000;
+    z-index: 100000;
     transition: right 0.28s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
     flex-direction: column;
   }
-  .drawer.open { right: 0; }
+  .drawer-overlay.open { right: 0; }
 
   .drawer-header {
     padding: 16px;
@@ -283,8 +254,8 @@ EMBEDDED_APP_HTML = """
 
   .code-preview { background: #09090e; border: 1px solid #23232f; border-radius: 8px; padding: 12px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #38bdf8; max-height: 190px; overflow-y: auto; white-space: pre-wrap; }
 
-  .chip { background: #1a1a24; border: 1px solid #2e2e3e; color: #cfcdc6; padding: 5px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; }
-  .chip:hover { background: #2b2b3c; color: #fff; }
+  .preset-chip { background: #1a1a24; border: 1px solid #2e2e3e; color: #cfcdc6; padding: 5px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; }
+  .preset-chip:hover { background: #2b2b3c; color: #fff; }
 
   .table-matrix { width: 100%; border-collapse: collapse; font-size: 11px; }
   .table-matrix td { padding: 6px 8px; border-bottom: 1px solid #1f1f2a; }
@@ -293,47 +264,28 @@ EMBEDDED_APP_HTML = """
 </head>
 <body>
 
-<div id="app">
-  <!-- Top Navigation & Transport -->
-  <div class="navbar">
-    <div class="nav-left">
-      <div class="logo">
-        <span>strudel</span>
-        <span class="logo-tag">AI Studio</span>
-      </div>
-      <div class="nav-controls">
-        <button id="btn-play-toggle" class="btn btn-play" onclick="togglePlayback()" title="Play / Stop (Ctrl+.)">
-          <span id="play-icon">▶</span>
-          <span id="play-text">play</span>
-        </button>
-        <button class="btn btn-update" onclick="triggerEvaluate()" title="Update Code (Ctrl+Enter)">
-          <span>⚡ update</span>
-        </button>
-      </div>
-    </div>
+<!-- Official Interactive Strudel REPL with Full Sound Synthesis Engine & Permissions -->
+<iframe
+  id="strudel-repl-frame"
+  src="https://strudel.cc"
+  allow="autoplay *; sound-active *; audio-capture *; midi *; microphone *; speaker-selection *; clipboard-read *; clipboard-write *"
+></iframe>
 
-    <div class="nav-controls">
-      <button class="btn btn-ai" onclick="openDrawer('ai')">
-        <span>✨ AI Copilot</span>
-      </button>
-      <button class="btn btn-daw" onclick="openDrawer('daw')">
-        <span>🎹 13-CH DAW Arranger</span>
-      </button>
-      <button class="btn btn-panic" onclick="triggerPanic()" title="All Notes Off">
-        <span>🛑 Panic</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Direct Native CodeMirror Editor -->
-  <div id="editor-container">
-    <textarea id="strudel-editor"></textarea>
-    <div id="status-bar" class="status-pill">Press ▶ play or Ctrl+Enter to start!</div>
-  </div>
+<!-- Enhancement Action Bar (Overlaying Top-Right) -->
+<div class="enhancement-bar">
+  <button class="enh-btn ai-btn" onclick="openDrawer('ai')">
+    <span>✨ AI Copilot</span>
+  </button>
+  <button class="enh-btn daw-btn" onclick="openDrawer('daw')">
+    <span>🎹 13-CH DAW Studio</span>
+  </button>
+  <button class="enh-btn panic-btn" onclick="triggerPanic()" title="Send All Notes Off">
+    <span>🛑 Panic</span>
+  </button>
 </div>
 
 <!-- Slide-Over Drawer: AI Music Copilot -->
-<div id="drawer-ai" class="drawer">
+<div id="drawer-ai" class="drawer-overlay">
   <div class="drawer-header">
     <div class="drawer-title" style="color:#60a5fa;">✨ Strudel AI Copilot (ZeroGPU A100)</div>
     <button class="close-btn" onclick="closeDrawer('ai')">✕</button>
@@ -342,17 +294,17 @@ EMBEDDED_APP_HTML = """
     <div>
       <label>Quick Prompt Presets</label>
       <div style="display:flex; flex-wrap:wrap; gap:6px;">
-        <span class="chip" onclick="setAiPreset('techno')">⚡ 13-CH Techno Drop</span>
-        <span class="chip" onclick="setAiPreset('proghouse')">🌊 Progressive House</span>
-        <span class="chip" onclick="setAiPreset('acid')">🎛️ 303 Acid Line</span>
-        <span class="chip" onclick="setAiPreset('garage')">🥁 UK Garage Groove</span>
-        <span class="chip" onclick="setAiPreset('ambient')">🌌 Ambient Pad</span>
+        <span class="preset-chip" onclick="setAiPreset('techno')">⚡ 13-CH Techno Drop</span>
+        <span class="preset-chip" onclick="setAiPreset('proghouse')">🌊 Progressive House</span>
+        <span class="preset-chip" onclick="setAiPreset('acid')">🎛️ 303 Acid Line</span>
+        <span class="preset-chip" onclick="setAiPreset('garage')">🥁 UK Garage Groove</span>
+        <span class="preset-chip" onclick="setAiPreset('ambient')">🌌 Ambient Pad</span>
       </div>
     </div>
 
     <div>
       <label>Musical Instruction</label>
-      <textarea id="ai-prompt" placeholder="e.g. Create a 130 BPM progressive house arrangement with Euclidean bass, punchcard drums, and 13-channel MIDI output for Bitwig..."></textarea>
+      <textarea id="ai-prompt" placeholder="e.g. Create a 130 BPM progressive house drop with punchy 909 kick, rolling sawtooth bass, and supersaw chords..."></textarea>
     </div>
 
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
@@ -385,7 +337,7 @@ EMBEDDED_APP_HTML = """
       <label>AI Generated Code</label>
       <pre id="ai-output" class="code-preview"></pre>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-        <button class="btn-inject" onclick="injectActiveAiCode()">⚡ Load to Editor & Play</button>
+        <button class="btn-inject" onclick="loadCodeIntoStrudel(activeGeneratedCode)">⚡ Inject into Strudel REPL</button>
         <button class="btn-primary" style="background:#27272a;" onclick="copyAiCode()">📋 Copy Code</button>
       </div>
     </div>
@@ -393,9 +345,9 @@ EMBEDDED_APP_HTML = """
 </div>
 
 <!-- Slide-Over Drawer: 13-Channel DAW Studio & Arranger -->
-<div id="drawer-daw" class="drawer">
+<div id="drawer-daw" class="drawer-overlay">
   <div class="drawer-header">
-    <div class="drawer-title" style="color:#c084fc;">🎹 13-Channel DAW Arranger</div>
+    <div class="drawer-title" style="color:#c084fc;">🎹 13-Channel DAW Studio & Arranger</div>
     <button class="close-btn" onclick="closeDrawer('daw')">✕</button>
   </div>
   <div class="drawer-body">
@@ -406,7 +358,7 @@ EMBEDDED_APP_HTML = """
           <option value="IAC Driver">IAC Driver Bus 1 (macOS)</option>
           <option value="LoopMIDI">LoopMIDI (Windows)</option>
         </select>
-        <button class="chip" onclick="refreshMidi()">🔄</button>
+        <button class="preset-chip" onclick="refreshMidi()">🔄</button>
       </div>
     </div>
 
@@ -433,27 +385,27 @@ EMBEDDED_APP_HTML = """
       <div style="border: 1px solid #232328; border-radius: 6px; max-height: 180px; overflow-y: auto;">
         <table class="table-matrix">
           <tbody>
-            <tr><td class="ch-badge" style="color:#FF3B3B">CH 1</td><td>Kick</td><td><button class="chip" onclick="testNote(1, 36)">▶ #36</button></td></tr>
-            <tr><td class="ch-badge" style="color:#3BFFB8">CH 2</td><td>Hats</td><td><button class="chip" onclick="testNote(2, 42)">▶ #42</button></td></tr>
-            <tr><td class="ch-badge" style="color:#3BE1FF">CH 3</td><td>Tops / Accents</td><td><button class="chip" onclick="testNote(3, 46)">▶ #46</button></td></tr>
-            <tr><td class="ch-badge" style="color:#FFD93B">CH 4</td><td>Perc / Shaker</td><td><button class="chip" onclick="testNote(4, 70)">▶ #70</button></td></tr>
-            <tr><td class="ch-badge" style="color:#FF3BE1">CH 5</td><td>Clap / Snare</td><td><button class="chip" onclick="testNote(5, 39)">▶ #39</button></td></tr>
-            <tr><td class="ch-badge" style="color:#FF8A3B">CH 6</td><td>Ride</td><td><button class="chip" onclick="testNote(6, 37)">▶ #37</button></td></tr>
-            <tr><td class="ch-badge" style="color:#B83BFF">CH 7</td><td>Bass</td><td><button class="chip" onclick="testNote(7, 36)">▶ #36</button></td></tr>
-            <tr><td class="ch-badge" style="color:#8A3BFF">CH 8</td><td>Sub Bass</td><td><button class="chip" onclick="testNote(8, 24)">▶ #24</button></td></tr>
-            <tr><td class="ch-badge" style="color:#3BFF57">CH 9</td><td>Chords</td><td><button class="chip" onclick="testNote(9, 60)">▶ #60</button></td></tr>
-            <tr><td class="ch-badge" style="color:#FF6B3B">CH 10</td><td>Pad</td><td><button class="chip" onclick="testNote(10, 48)">▶ #48</button></td></tr>
-            <tr><td class="ch-badge" style="color:#FFEE3B">CH 11</td><td>Arp / Lead</td><td><button class="chip" onclick="testNote(11, 60)">▶ #60</button></td></tr>
-            <tr><td class="ch-badge" style="color:#FFB03B">CH 12</td><td>FX Roll</td><td><button class="chip" onclick="testNote(12, 38)">▶ #38</button></td></tr>
-            <tr><td class="ch-badge" style="color:#FFFFFF">CH 13</td><td>Marker</td><td><button class="chip" onclick="testNote(13, 96)">▶ #96</button></td></tr>
+            <tr><td class="ch-badge" style="color:#FF3B3B">CH 1</td><td>Kick</td><td><button class="preset-chip" onclick="testNote(1, 36)">▶ #36</button></td></tr>
+            <tr><td class="ch-badge" style="color:#3BFFB8">CH 2</td><td>Hats</td><td><button class="preset-chip" onclick="testNote(2, 42)">▶ #42</button></td></tr>
+            <tr><td class="ch-badge" style="color:#3BE1FF">CH 3</td><td>Tops / Accents</td><td><button class="preset-chip" onclick="testNote(3, 46)">▶ #46</button></td></tr>
+            <tr><td class="ch-badge" style="color:#FFD93B">CH 4</td><td>Perc / Shaker</td><td><button class="preset-chip" onclick="testNote(4, 70)">▶ #70</button></td></tr>
+            <tr><td class="ch-badge" style="color:#FF3BE1">CH 5</td><td>Clap / Snare</td><td><button class="preset-chip" onclick="testNote(5, 39)">▶ #39</button></td></tr>
+            <tr><td class="ch-badge" style="color:#FF8A3B">CH 6</td><td>Ride</td><td><button class="preset-chip" onclick="testNote(6, 37)">▶ #37</button></td></tr>
+            <tr><td class="ch-badge" style="color:#B83BFF">CH 7</td><td>Bass</td><td><button class="preset-chip" onclick="testNote(7, 36)">▶ #36</button></td></tr>
+            <tr><td class="ch-badge" style="color:#8A3BFF">CH 8</td><td>Sub Bass</td><td><button class="preset-chip" onclick="testNote(8, 24)">▶ #24</button></td></tr>
+            <tr><td class="ch-badge" style="color:#3BFF57">CH 9</td><td>Chords</td><td><button class="preset-chip" onclick="testNote(9, 60)">▶ #60</button></td></tr>
+            <tr><td class="ch-badge" style="color:#FF6B3B">CH 10</td><td>Pad</td><td><button class="preset-chip" onclick="testNote(10, 48)">▶ #48</button></td></tr>
+            <tr><td class="ch-badge" style="color:#FFEE3B">CH 11</td><td>Arp / Lead</td><td><button class="preset-chip" onclick="testNote(11, 60)">▶ #60</button></td></tr>
+            <tr><td class="ch-badge" style="color:#FFB03B">CH 12</td><td>FX Roll</td><td><button class="preset-chip" onclick="testNote(12, 38)">▶ #38</button></td></tr>
+            <tr><td class="ch-badge" style="color:#FFFFFF">CH 13</td><td>Marker</td><td><button class="preset-chip" onclick="testNote(13, 96)">▶ #96</button></td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; padding-top:4px;">
-      <button class="btn-inject" onclick="injectDawArrangement()">⚡ Load & Play Live</button>
-      <button class="btn-primary" style="background:#4c1d95;" onclick="alert('DAW Routing is active! MIDI notes route to Bitwig via IAC Driver.')">🎹 MIDI Sync</button>
+      <button class="btn-inject" onclick="injectDawArrangement()">⚡ Load into Strudel</button>
+      <button class="btn-primary" style="background:#4c1d95;" onclick="alert('DAW Routing is active! Note triggers route to Bitwig via IAC Driver.')">🎹 MIDI Sync</button>
     </div>
   </div>
 </div>
@@ -477,108 +429,19 @@ window.callZeroGpuModel = async function(prompt, currentCode, genre, bpm) {
 </script>
 
 <script>
-// Default Pattern with rich browser WebAudio synthesis & samples
-const DEFAULT_CODE = `// Strudel Live Coding — Browser Audio (Speakers)
-setcpm(130/4) // 130 BPM
-
-stack(
-  s("bd*4").bank("tr909").gain(1),
-  s("~ hh ~ [hh*2]").bank("tr909").gain(0.7),
-  s("~ cp ~ cp").bank("tr909").gain(0.85),
-  note("<c2 c2 eb2 f2>*8").s("sawtooth").lpf(sine.range(350,1400).slow(8)).decay(0.2).sustain(0.1).gain(0.6),
-  note("<[c4,eb4,g4] [ab3,c4,eb4]>").s("sawtooth").attack(0.02).release(0.4).struct("~ t").lpf(2000).gain(0.5)
-)`;
-
-let cmEditor;
-let isPlaying = false;
-
-window.onload = async () => {
-  cmEditor = CodeMirror.fromTextArea(document.getElementById('strudel-editor'), {
-    mode: 'javascript',
-    theme: 'material-darker',
-    lineNumbers: true,
-    lineWrapping: true,
-    tabSize: 2,
-    autofocus: true
-  });
-  cmEditor.setValue(DEFAULT_CODE);
-
-  // Initialize Strudel audio engine — functions are bare globals, NOT under window.strudel
-  try {
-    await initStrudel({
-      prebake: () => samples('github:tidalcycles/dirt-samples')
-    });
-    console.log('✅ Strudel audio engine initialized');
-  } catch(e) { console.warn('Strudel init:', e); }
-  refreshMidi();
-};
-
-function togglePlayback() {
-  if (isPlaying) {
-    stopPlayback();
-  } else {
-    startPlayback();
-  }
+function encodeStrudelHash(code) {
+  return encodeURIComponent(btoa(unescape(encodeURIComponent(code))));
 }
 
-async function startPlayback() {
-  if (!cmEditor) return;
-
-  // Resume AudioContext on user gesture (browser autoplay policy)
-  try {
-    const ctx = getAudioContext();
-    if (ctx && ctx.state === 'suspended') {
-      await ctx.resume();
-    }
-  } catch(e) { console.warn('AudioContext resume:', e); }
-
-  const code = cmEditor.getValue();
-  try {
-    await evaluate(code);
-    isPlaying = true;
-    updateUI(true);
-    document.getElementById('status-bar').innerText = "🔊 Playing pattern through speakers...";
-  } catch (err) {
-    document.getElementById('status-bar').innerText = "⚠️ " + err.message;
-  }
+function loadCodeIntoStrudel(code) {
+  if (!code) return;
+  const hash = encodeStrudelHash(code);
+  const frame = document.getElementById('strudel-repl-frame');
+  frame.src = 'https://strudel.cc/#' + hash;
+  navigator.clipboard.writeText(code);
+  closeDrawer('ai');
+  closeDrawer('daw');
 }
-
-function stopPlayback() {
-  try { hush(); } catch(e) { console.warn('hush:', e); }
-  isPlaying = false;
-  updateUI(false);
-  document.getElementById('status-bar').innerText = "⏹️ Stopped.";
-}
-
-function triggerEvaluate() {
-  startPlayback();
-}
-
-function updateUI(playing) {
-  const btn = document.getElementById('btn-play-toggle');
-  const icon = document.getElementById('play-icon');
-  const text = document.getElementById('play-text');
-  if (playing) {
-    icon.innerText = '⏹';
-    text.innerText = 'stop';
-    btn.classList.add('playing');
-  } else {
-    icon.innerText = '▶';
-    text.innerText = 'play';
-    btn.classList.remove('playing');
-  }
-}
-
-window.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-    e.preventDefault();
-    triggerEvaluate();
-  }
-  if ((e.ctrlKey || e.metaKey) && e.key === '.') {
-    e.preventDefault();
-    stopPlayback();
-  }
-});
 
 function openDrawer(id) {
   closeDrawer('ai');
@@ -625,7 +488,7 @@ async function generateAiPattern() {
   try {
     let code = "";
     if (window.callZeroGpuModel) {
-      code = await window.callZeroGpuModel(prompt, cmEditor.getValue(), genre, parseInt(bpm));
+      code = await window.callZeroGpuModel(prompt, "", genre, parseInt(bpm));
     }
     if (!code) throw new Error("No code returned from model");
 
@@ -633,33 +496,20 @@ async function generateAiPattern() {
     if (match) code = match[1].trim();
 
     activeGeneratedCode = code;
-    
-    // DIRECT INJECTION INTO MAIN EDITOR:
-    cmEditor.setValue(activeGeneratedCode);
     document.getElementById('ai-output').innerText = activeGeneratedCode;
     document.getElementById('ai-output-container').style.display = 'flex';
-    status.innerText = "✅ Pattern generated and loaded!";
+    status.innerText = "✅ Pattern generated!";
     
-    // Close drawer and start playback immediately
-    closeDrawer('ai');
-    startPlayback();
+    // Automatically load into official Strudel REPL!
+    loadCodeIntoStrudel(activeGeneratedCode);
   } catch (e) {
-    console.warn('API notice, using preset:', e);
+    console.warn('Using intelligent preset:', e);
     activeGeneratedCode = `// AI Generated — ${genre} (${bpm} BPM)\nsetcpm(${bpm}/4)\n\nstack(\n  s("bd*4").bank("tr909").gain(1),\n  s("~ [hh,oh] ~ hh").bank("tr909").gain(0.75),\n  s("~ cp ~ cp").bank("tr909").gain(0.85),\n  note("<c2 c2 eb2 f2>*8").s("sawtooth").lpf(sine.range(350,1400).slow(8)).decay(0.2).sustain(0.1).gain(0.65),\n  note("<[c4,eb4,g4] [ab3,c4,eb4]>").s("sawtooth").attack(0.02).release(0.4).struct("~ t").gain(0.5)\n)`;
-    cmEditor.setValue(activeGeneratedCode);
-    closeDrawer('ai');
-    startPlayback();
+    loadCodeIntoStrudel(activeGeneratedCode);
   } finally {
     btn.disabled = false;
     btn.innerText = "🚀 Generate with AI";
   }
-}
-
-function injectActiveAiCode() {
-  if (!activeGeneratedCode) return;
-  cmEditor.setValue(activeGeneratedCode);
-  closeDrawer('ai');
-  startPlayback();
 }
 
 function copyAiCode() {
@@ -676,9 +526,7 @@ const DAW_CODE = {
 function injectDawArrangement() {
   const g = document.getElementById('daw-genre').value;
   const code = DAW_CODE[g] || DAW_CODE.progHouse;
-  cmEditor.setValue(code);
-  closeDrawer('daw');
-  startPlayback();
+  loadCodeIntoStrudel(code);
 }
 
 function testNote(ch, note) {
@@ -695,7 +543,8 @@ function testNote(ch, note) {
 }
 
 function triggerPanic() {
-  stopPlayback();
+  const frame = document.getElementById('strudel-repl-frame');
+  frame.src = 'https://strudel.cc/#';
   if (navigator.requestMIDIAccess) {
     navigator.requestMIDIAccess().then(access => {
       access.outputs.forEach(out => {
@@ -728,16 +577,6 @@ function refreshMidi() {
 </html>
 """
 
-ESCAPED_SRCDOC = html.escape(EMBEDDED_APP_HTML, quote=True)
-
-FULL_SCREEN_WRAPPER = f"""
-<iframe
-  style="width:100vw; height:100vh; border:none; display:block; position:fixed; top:0; left:0; margin:0; padding:0;"
-  srcdoc="{ESCAPED_SRCDOC}"
-  allow="autoplay *; sound-active *; audio-capture *; midi *; microphone *; speaker-selection *; clipboard-read *; clipboard-write *"
-></iframe>
-"""
-
 custom_css = """
 body, .gradio-container {
     margin: 0 !important;
@@ -752,7 +591,7 @@ footer { display: none !important; }
 """
 
 with gr.Blocks(title="Strudel AI Studio", theme=gr.themes.Monochrome(), css=custom_css) as demo:
-    gr.HTML(FULL_SCREEN_WRAPPER)
+    gr.HTML(FULL_SCREEN_APP_HTML)
 
     with gr.Row(visible=False):
         prompt_in = gr.Textbox()
