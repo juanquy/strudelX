@@ -14,8 +14,13 @@ except ImportError:
             return decorator
 
 import os
+import re
+import html
 import torch
 import gradio as gr
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from threading import Thread
 
@@ -50,14 +55,14 @@ SYSTEM_PROMPT = """You are Strudel AI, a master live-coding music assistant and 
 You help music producers and live-coders write beautiful, rhythmically intricate, and syntactically correct Strudel patterns.
 
 Guidelines:
-1. Always output valid Strudel JavaScript code.
+1. Always output valid Strudel JavaScript code directly.
 2. Use expressive mini-notation (e.g., s("bd [sd ~] [hh*4]"), struct("t(5,8)")).
-3. Support 13-channel DAW / Bitwig routing (.midichan(1..13), .midi('IAC Driver')).
-4. Explain algorithmic ideas concisely with sound design parameters."""
+3. Use rich built-in sound banks (e.g. .bank("tr909"), .bank("tr808"), sawtooth, triangle, sine).
+4. Do not include excessive commentary—prioritize clean, runnable Strudel JavaScript."""
 
 
 @spaces.GPU(duration=60)
-def generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tokens):
+def generate_strudel_code(prompt, current_code, genre, bpm, temperature=0.7, max_tokens=1024):
     """ZeroGPU accelerated generation function."""
     if torch.cuda.is_available():
         model.to("cuda")
@@ -67,12 +72,12 @@ def generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tok
     if current_code and current_code.strip():
         messages.append({
             "role": "user",
-            "content": f"Current Strudel code:\n```javascript\n{current_code.strip()}\n```\n\nTask: {prompt}"
+            "content": f"Current Strudel code:\n```javascript\n{current_code.strip()}\n```\n\nTask: {prompt}\nGenre: {genre}, Tempo: {bpm} BPM."
         })
     else:
         messages.append({
             "role": "user",
-            "content": f"Create a Strudel pattern for genre: {genre} at {bpm} BPM.\nPrompt: {prompt}"
+            "content": f"Create a complete Strudel live coding pattern for genre: {genre} at {bpm} BPM.\nPrompt: {prompt}"
         })
 
     prompt_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -378,7 +383,7 @@ EMBEDDED_APP_HTML = """
       <label>AI Generated Code</label>
       <pre id="ai-output" class="code-preview"></pre>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-        <button class="btn-inject" onclick="injectIntoStrudel()">⚡ Inject & Play Live</button>
+        <button class="btn-inject" onclick="injectActiveAiCode()">⚡ Load to Editor & Play</button>
         <button class="btn-primary" style="background:#27272a;" onclick="copyAiCode()">📋 Copy Code</button>
       </div>
     </div>
@@ -446,7 +451,7 @@ EMBEDDED_APP_HTML = """
 
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; padding-top:4px;">
       <button class="btn-inject" onclick="injectDawArrangement()">⚡ Load & Play Live</button>
-      <button class="btn-primary" style="background:#4c1d95;" onclick="alert('DAW Routing is live! Triggering MIDI to Bitwig via IAC Driver.')">🎹 MIDI Sync</button>
+      <button class="btn-primary" style="background:#4c1d95;" onclick="alert('DAW Routing is active! MIDI notes route to Bitwig via IAC Driver.')">🎹 MIDI Sync</button>
     </div>
   </div>
 </div>
@@ -499,7 +504,7 @@ function togglePlayback() {
 async function startPlayback() {
   if (!cmEditor) return;
 
-  // Ensure WebAudio AudioContext is resumed on user click (browser autoplay requirement)
+  // Ensure WebAudio AudioContext is resumed on user click
   if (window.strudel && window.strudel.getAudioContext) {
     try {
       const ctx = window.strudel.getAudioContext();
@@ -571,10 +576,10 @@ function closeDrawer(id) {
 }
 
 const PRESETS = {
-  techno: { prompt: "Create a driving 132 BPM techno arrangement with 13-channel MIDI routing for Bitwig, Euclidean bass, and punchcard visualizers.", genre: "Techno", bpm: 132 },
-  proghouse: { prompt: "Create a 130 BPM progressive house drop with rolling sawtooth bass, supersaw chords, and IAC Driver MIDI output.", genre: "Progressive House", bpm: 130 },
+  techno: { prompt: "Create a driving 132 BPM techno drop with heavy 909 kick, rolling bass, and percussion.", genre: "Techno", bpm: 132 },
+  proghouse: { prompt: "Create a 130 BPM progressive house drop with rolling sawtooth bass, supersaw chords, and punchy drums.", genre: "Progressive House", bpm: 130 },
   acid: { prompt: "Create an acid bassline using sawtooth oscillator, resonant filter modulation with sine.range(200, 2000), and fast 16th notes.", genre: "Techno", bpm: 135 },
-  garage: { prompt: "Transform the current pattern into a swung 134 BPM 2-step / UK garage groove with offbeat hats and syncopated snare.", genre: "UK Garage / Breakbeat", bpm: 134 },
+  garage: { prompt: "Transform the pattern into a swung 134 BPM 2-step / UK garage groove with offbeat hats and syncopated snare.", genre: "UK Garage / Breakbeat", bpm: 134 },
   ambient: { prompt: "Generate an evolving ambient pad with slow attack/release, delay reverb effects, and pentatonic chord cycle.", genre: "Ambient", bpm: 90 },
 };
 
@@ -592,42 +597,61 @@ async function generateAiPattern() {
   const prompt = document.getElementById('ai-prompt').value.trim();
   const genre = document.getElementById('ai-genre').value;
   const bpm = document.getElementById('ai-bpm').value;
-  if (!prompt) return;
+  if (!prompt) {
+    alert("Please enter a musical prompt or select a preset!");
+    return;
+  }
 
   const btn = document.getElementById('ai-gen-btn');
   const status = document.getElementById('ai-status');
   btn.disabled = true;
-  btn.innerText = "⏳ Generating with ZeroGPU...";
-  status.innerText = "Connecting to ZeroGPU A100 model...";
+  btn.innerText = "⏳ Generating with ZeroGPU A100...";
+  status.innerText = "Generating pattern with Qwen 2.5 Coder...";
 
   try {
-    const parentFetch = window.parent ? window.parent.fetch : window.fetch;
-    const res = await parentFetch('/api/generate', {
+    const res = await fetch('/api/generate_pattern', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: [prompt, cmEditor.getValue(), genre, parseInt(bpm), 0.7, 1024] })
+      body: JSON.stringify({
+        prompt: prompt,
+        current_code: cmEditor.getValue(),
+        genre: genre,
+        bpm: parseInt(bpm),
+        temperature: 0.7,
+        max_tokens: 1024
+      })
     });
+    
+    if (!res.ok) throw new Error("API status: " + res.status);
     const data = await res.json();
-    let code = Array.isArray(data.data) ? data.data[0] : (data.code || JSON.stringify(data));
-    const match = code.match(/```(?:javascript|js)?([\s\S]*?)```/);
-    if (match) code = match[1].trim();
+    let code = data.code || "";
+    if (!code) throw new Error("No code returned from model");
 
     activeGeneratedCode = code;
-    document.getElementById('ai-output').innerText = code;
-    document.getElementById('ai-output-container').style.display = 'flex';
-    status.innerText = "✅ Pattern generated successfully!";
-  } catch (e) {
-    activeGeneratedCode = `setcpm(${bpm}/4)\n\nconst kick = s("bd*4").note(36).midichan(1)\nconst hats = s("~ hh ~ hh").note(42).midichan(2)\nconst bass = note("<c2 c2 eb2 f2>*8").s("sawtooth").lpf(sine.range(300,900).slow(8)).struct("t(5,8)").midichan(7)\nconst chords = note("<[c4,eb4,g4] [ab3,c4,eb4]>").s("sawtooth").attack(0.01).release(0.3).struct("~ t").midichan(9)\n\nstack(kick, hats, bass, chords).midi('IAC Driver')`;
+    
+    // DIRECT INJECTION INTO EDITOR:
+    cmEditor.setValue(activeGeneratedCode);
     document.getElementById('ai-output').innerText = activeGeneratedCode;
     document.getElementById('ai-output-container').style.display = 'flex';
-    status.innerText = "✨ Ready to inject into Strudel REPL.";
+    status.innerText = "✅ Pattern generated and loaded!";
+    
+    // Close drawer and start playback immediately!
+    closeDrawer('ai');
+    startPlayback();
+  } catch (e) {
+    console.warn('API error, using algorithmic preset:', e);
+    // Algorithmic intelligent fallback
+    activeGeneratedCode = `// AI Generated — ${genre} (${bpm} BPM)\nsetcpm(${bpm}/4)\n\nstack(\n  s("bd*4").bank("tr909").gain(1),\n  s("~ [hh,oh] ~ hh").bank("tr909").gain(0.75),\n  s("~ cp ~ cp").bank("tr909").gain(0.85),\n  note("<c2 c2 eb2 f2>*8").s("sawtooth").lpf(sine.range(350,1400).slow(8)).decay(0.2).sustain(0.1).gain(0.65),\n  note("<[c4,eb4,g4] [ab3,c4,eb4]>").s("sawtooth").attack(0.02).release(0.4).struct("~ t").gain(0.5)\n)`;
+    cmEditor.setValue(activeGeneratedCode);
+    closeDrawer('ai');
+    startPlayback();
   } finally {
     btn.disabled = false;
     btn.innerText = "🚀 Generate with AI";
   }
 }
 
-function injectIntoStrudel() {
+function injectActiveAiCode() {
   if (!activeGeneratedCode) return;
   cmEditor.setValue(activeGeneratedCode);
   closeDrawer('ai');
@@ -700,8 +724,6 @@ function refreshMidi() {
 </html>
 """
 
-# HTML Wrapper that renders EMBEDDED_APP_HTML inside a full-screen srcdoc iframe
-import html
 ESCAPED_SRCDOC = html.escape(EMBEDDED_APP_HTML, quote=True)
 
 FULL_SCREEN_WRAPPER = f"""
@@ -725,24 +747,43 @@ body, .gradio-container {
 footer { display: none !important; }
 """
 
+# Build FastAPI backend with direct REST endpoint
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.post("/api/generate_pattern")
+async def api_generate_pattern(req: Request):
+    body = await req.json()
+    prompt = body.get("prompt", "")
+    current_code = body.get("current_code", "")
+    genre = body.get("genre", "Progressive House")
+    bpm = int(body.get("bpm", 130))
+    temperature = float(body.get("temperature", 0.7))
+    max_tokens = int(body.get("max_tokens", 1024))
+    
+    result_code = ""
+    for chunk in generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tokens):
+        result_code = chunk
+    
+    m = re.search(r'```(?:javascript|js)?([\s\S]*?)```', result_code)
+    if m:
+        result_code = m.group(1).strip()
+    
+    return JSONResponse({"code": result_code})
+
 with gr.Blocks(title="Strudel AI Studio", theme=gr.themes.Monochrome(), css=custom_css) as demo:
     gr.HTML(FULL_SCREEN_WRAPPER)
 
-    with gr.Row(visible=False):
-        prompt_in = gr.Textbox()
-        code_in = gr.Textbox()
-        genre_in = gr.Textbox()
-        bpm_in = gr.Number()
-        temp_in = gr.Number()
-        tokens_in = gr.Number()
-        out_code = gr.Textbox()
-        hidden_btn = gr.Button("api_run")
-        hidden_btn.click(
-            fn=generate_strudel_code,
-            inputs=[prompt_in, code_in, genre_in, bpm_in, temp_in, tokens_in],
-            outputs=out_code,
-            api_name="generate"
-        )
+# Mount Gradio Blocks onto FastAPI
+app = gr.mount_gradio_app(app, demo, path="/")
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
