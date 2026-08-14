@@ -15,6 +15,7 @@ except ImportError:
 
 import os
 import re
+import json
 import torch
 import gradio as gr
 from fastapi import FastAPI, Request
@@ -25,6 +26,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStream
 from threading import Thread
 
 MODEL_NAME = os.getenv("BASE_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
+LORA_PATH = os.getenv("LORA_PATH", "./strudel-qwen-lora")
+DATASET_PATH = os.getenv("DATASET_PATH", "./data/strudel_dataset.jsonl")
+
+os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
 
 print(f"📦 Loading tokenizer for {MODEL_NAME}...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
@@ -39,6 +44,16 @@ model = AutoModelForCausalLM.from_pretrained(
     trust_remote_code=True,
     device_map="cpu"
 )
+
+if os.path.exists(LORA_PATH):
+    print(f"🔗 Loading LoRA adapter from {LORA_PATH}...")
+    try:
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, LORA_PATH)
+        model = model.merge_and_unload()
+    except Exception as e:
+        print(f"⚠️ LoRA load notice: {e}")
+
 model.eval()
 
 SYSTEM_PROMPT = """You are Strudel AI, a master live-coding music assistant and algorithmic pattern engineer.
@@ -99,49 +114,175 @@ def generate_strudel_code(prompt, current_code="", genre="Progressive House", bp
     return accumulated_text.strip()
 
 
-# Read built static index.html content
-DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "website", "dist"))
-INDEX_PATH = os.path.join(DIST_DIR, "index.html")
+def add_to_dataset(instruction, strudel_code, genre, bpm):
+    """Add a new curated Strudel code pattern pair to the training dataset."""
+    if not instruction.strip() or not strudel_code.strip():
+        return "❌ Error: Prompt and Strudel Code cannot be empty."
 
-raw_html = ""
-if os.path.exists(INDEX_PATH):
-    with open(INDEX_PATH, "r", encoding="utf-8") as f:
-        raw_html = f.read()
+    entry = {
+        "instruction": f"Create a Strudel pattern for genre: {genre} at {bpm} BPM. {instruction.strip()}",
+        "input": "",
+        "output": strudel_code.strip(),
+        "metadata": {"genre": genre, "bpm": bpm}
+    }
+
+    with open(DATASET_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    return f"✅ Saved sample to {DATASET_PATH}! Total entries: {get_dataset_count()}"
+
+
+def get_dataset_count():
+    if not os.path.exists(DATASET_PATH):
+        return 0
+    with open(DATASET_PATH, "r", encoding="utf-8") as f:
+        return sum(1 for line in f if line.strip())
+
+
+@spaces.GPU(duration=300)
+def run_lora_finetuning(epochs, batch_size, learning_rate, lora_r):
+    """ZeroGPU accelerated LoRA Fine-Tuning Studio."""
+    count = get_dataset_count()
+    if count < 1:
+        return f"❌ Fine-tuning requires at least 1 curated dataset sample in {DATASET_PATH}. Add samples in Dataset Curator tab first!"
+
+    try:
+        from datasets import load_dataset
+        from peft import LoraConfig, get_peft_model
+        from trl import SFTTrainer
+        from transformers import TrainingArguments
+
+        print(f"🔥 Starting ZeroGPU LoRA Fine-Tuning on {count} dataset samples...")
+
+        train_dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
+
+        def format_chat(sample):
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": sample["instruction"]},
+                {"role": "assistant", "content": sample["output"]}
+            ]
+            return {"text": tokenizer.apply_chat_template(messages, tokenize=False)}
+
+        train_dataset = train_dataset.map(format_chat)
+
+        if torch.cuda.is_available():
+            model.to("cuda")
+
+        lora_config = LoraConfig(
+            r=int(lora_r),
+            lora_alpha=int(lora_r * 2),
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
+
+        peft_model = get_peft_model(model, lora_config)
+
+        training_args = TrainingArguments(
+            output_dir=LORA_PATH,
+            num_train_epochs=int(epochs),
+            per_device_train_batch_size=int(batch_size),
+            gradient_accumulation_steps=2,
+            learning_rate=float(learning_rate),
+            fp16=torch.cuda.is_available(),
+            logging_steps=1,
+            save_strategy="no",
+            report_to="none",
+        )
+
+        trainer = SFTTrainer(
+            model=peft_model,
+            train_dataset=train_dataset,
+            dataset_text_field="text",
+            max_seq_length=1024,
+            tokenizer=tokenizer,
+            args=training_args,
+        )
+
+        trainer.train()
+        trainer.model.save_pretrained(LORA_PATH)
+        tokenizer.save_pretrained(LORA_PATH)
+
+        return f"🎉 Success! Fine-tuned LoRA model saved to {LORA_PATH}! All future local StrudelX AI queries will use the updated model."
+    except Exception as e:
+        return f"⚠️ Fine-tuning error: {str(e)}"
+
 
 custom_css = """
 body, .gradio-container {
-    margin: 0 !important;
-    padding: 0 !important;
-    max-width: 100vw !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    overflow: hidden !important;
-    background: #0b0b0d !important;
+    background-color: #0b0b0d;
+    color: #e8e6e1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-footer { display: none !important; }
+.gr-button-primary {
+    background: #3b8eff !important;
+    border: none !important;
+}
 """
 
-with gr.Blocks(title="Strudel AI Studio", theme=gr.themes.Monochrome(), css=custom_css) as demo:
-    if raw_html:
-        gr.HTML(raw_html)
-    else:
-        gr.Markdown("# Strudel REPL Loading...")
+with gr.Blocks(title="Strudel AI Studio & Training Backend", theme=gr.themes.Monochrome(), css=custom_css) as demo:
+    gr.Markdown(
+        """
+        # 🎵 Strudel AI Cloud Backend & Fine-Tuning Studio
+        ### ZeroGPU Accelerated API for Local StrudelX Desktop & Browser Apps
+        """
+    )
 
-    with gr.Row(visible=False):
-        prompt_in = gr.Textbox()
-        code_in = gr.Textbox()
-        genre_in = gr.Textbox()
-        bpm_in = gr.Number()
-        temp_in = gr.Number()
-        tokens_in = gr.Number()
-        out_code = gr.Textbox()
-        gen_btn = gr.Button("api_run")
-        gen_btn.click(
-            fn=generate_strudel_code,
-            inputs=[prompt_in, code_in, genre_in, bpm_in, temp_in, tokens_in],
-            outputs=out_code,
-            api_name="generate_pattern"
-        )
+    with gr.Tabs():
+        with gr.TabItem("🎵 AI Music Generation Sandbox"):
+            with gr.Row():
+                with gr.Column(scale=1):
+                    prompt_in = gr.Textbox(label="Prompt / Musical Idea", placeholder="e.g. Create a rolling progressive house bassline with 130 BPM", lines=3)
+                    code_in = gr.Textbox(label="Current Strudel Code (Optional)", placeholder="Paste existing code to modify...", lines=4)
+                    genre_in = gr.Dropdown(label="Genre", choices=["Progressive House", "Techno", "Trance", "Drum & Bass", "Dubstep", "Ambient"], value="Progressive House")
+                    bpm_in = gr.Number(label="BPM", value=130)
+                    gen_btn = gr.Button("🚀 Test AI Generation (ZeroGPU)", variant="primary")
+
+                with gr.Column(scale=1):
+                    output_code = gr.Code(label="Generated Strudel Code (JavaScript)", language="javascript", lines=16)
+
+            gen_btn.click(
+                fn=generate_strudel_code,
+                inputs=[prompt_in, code_in, genre_in, bpm_in],
+                outputs=output_code,
+                api_name="generate_pattern"
+            )
+
+        with gr.TabItem("📚 Dataset Curator & YouTube Scraping"):
+            gr.Markdown("### Add Curated Strudel Code Patterns to the AI Training Dataset")
+            with gr.Row():
+                with gr.Column():
+                    cur_prompt = gr.Textbox(label="Instruction / Musical Description", placeholder="e.g. Euclidean 5/8 drum groove with TR-909 bank")
+                    cur_code = gr.Code(label="Valid Strudel JavaScript Code", language="javascript", lines=8)
+                    cur_genre = gr.Dropdown(label="Genre", choices=["Progressive House", "Techno", "Trance", "Drum & Bass", "Ambient"], value="Progressive House")
+                    cur_bpm = gr.Number(label="BPM", value=130)
+                    add_btn = gr.Button("💾 Save Sample to Training Dataset", variant="primary")
+                    cur_status = gr.Textbox(label="Status / Dataset Size", value=f"Total dataset entries: {get_dataset_count()}")
+
+            add_btn.click(
+                fn=add_to_dataset,
+                inputs=[cur_prompt, cur_code, cur_genre, cur_bpm],
+                outputs=cur_status
+            )
+
+        with gr.TabItem("🔥 ZeroGPU LoRA Fine-Tuning Studio"):
+            gr.Markdown("### Fine-tune Qwen 2.5 Coder 7B on your Curated Dataset using ZeroGPU A100")
+            with gr.Row():
+                with gr.Column():
+                    epoch_in = gr.Slider(minimum=1, maximum=10, value=3, step=1, label="Epochs")
+                    batch_in = gr.Slider(minimum=1, maximum=8, value=2, step=1, label="Batch Size")
+                    lr_in = gr.Textbox(label="Learning Rate", value="0.0002")
+                    rank_in = gr.Dropdown(label="LoRA Rank (r)", choices=["8", "16", "32"], value="16")
+                    train_btn = gr.Button("🔥 Start ZeroGPU Fine-Tuning Job", variant="primary")
+                    train_status = gr.Textbox(label="Training Output & Logs", lines=6)
+
+            train_btn.click(
+                fn=run_lora_finetuning,
+                inputs=[epoch_in, batch_in, lr_in, rank_in],
+                outputs=train_status
+            )
 
 app = gr.routes.App.create_app(demo)
 
@@ -153,24 +294,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-if os.path.exists(DIST_DIR):
-    for folder in ["_astro", "fonts", "icons", "img", "pwa", "bakery", "learn", "workshop", "technical-manual", "recipes"]:
-        subpath = os.path.join(DIST_DIR, folder)
-        if os.path.exists(subpath):
-            app.mount(f"/{folder}", StaticFiles(directory=subpath), name=folder)
-
-    @app.post("/api/generate_pattern")
-    async def api_generate_pattern(req: Request):
-        try:
-            data = await req.json()
-            prompt = data.get("prompt", "")
-            current_code = data.get("current_code", "")
-            genre = data.get("genre", "Progressive House")
-            bpm = data.get("bpm", 130)
-            code = generate_strudel_code(prompt, current_code, genre, bpm)
-            return JSONResponse({"code": code, "data": [code]})
-        except Exception as e:
-            return JSONResponse({"error": str(e)}, status_code=500)
+@app.post("/api/generate_pattern")
+async def api_generate_pattern(req: Request):
+    try:
+        data = await req.json()
+        prompt = data.get("prompt", "")
+        current_code = data.get("current_code", "")
+        genre = data.get("genre", "Progressive House")
+        bpm = data.get("bpm", 130)
+        code = generate_strudel_code(prompt, current_code, genre, bpm)
+        return JSONResponse({"code": code, "data": [code]})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     demo.queue().launch(server_name="0.0.0.0", server_port=7860)
