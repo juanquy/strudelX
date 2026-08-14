@@ -1,7 +1,17 @@
-"""
-app.py — Hugging Face ZeroGPU Gradio App for Strudel AI Assistant
-Fully compatible with Hugging Face ZeroGPU (dynamic A100 GPU allocation via @spaces.GPU).
-"""
+# IMPORTANT: 'import spaces' MUST be the very first import before torch / transformers
+try:
+    import spaces
+    HAS_ZEROGPU = True
+except ImportError:
+    HAS_ZEROGPU = False
+    class spaces:
+        @staticmethod
+        def GPU(fn=None, duration=60):
+            def decorator(func):
+                return func
+            if fn is not None:
+                return fn
+            return decorator
 
 import os
 import torch
@@ -9,18 +19,6 @@ import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from peft import PeftModel
 from threading import Thread
-
-# Try importing spaces for Hugging Face ZeroGPU
-try:
-    import spaces
-    HAS_ZEROGPU = True
-except ImportError:
-    HAS_ZEROGPU = False
-    # Fallback decorator if running locally without spaces package
-    class spaces:
-        @staticmethod
-        def GPU(fn):
-            return fn
 
 MODEL_NAME = os.getenv("BASE_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
 LORA_PATH = os.getenv("LORA_PATH", "./strudel-qwen-lora")
@@ -96,7 +94,6 @@ def generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tok
         yield accumulated_text
 
 
-# Predefined example prompts
 EXAMPLES = [
     [
         "Create a driving 130 BPM progressive house arrangement with Euclidean bass, punchcard drums, and IAC Driver MIDI routing across channels 1-13.",

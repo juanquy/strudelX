@@ -1,15 +1,4 @@
-"""
-app.py — Hugging Face ZeroGPU Gradio App for Strudel AI Assistant
-"""
-
-import os
-import torch
-import gradio as gr
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
-from peft import PeftModel
-from threading import Thread
-
-# Try importing spaces for Hugging Face ZeroGPU
+# IMPORTANT: 'import spaces' MUST be the very first import before torch / transformers
 try:
     import spaces
     HAS_ZEROGPU = True
@@ -17,8 +6,19 @@ except ImportError:
     HAS_ZEROGPU = False
     class spaces:
         @staticmethod
-        def GPU(fn):
-            return fn
+        def GPU(fn=None, duration=60):
+            def decorator(func):
+                return func
+            if fn is not None:
+                return fn
+            return decorator
+
+import os
+import torch
+import gradio as gr
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
+from peft import PeftModel
+from threading import Thread
 
 MODEL_NAME = os.getenv("BASE_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
 LORA_PATH = os.getenv("LORA_PATH", "./strudel-qwen-lora")
