@@ -452,17 +452,17 @@ EMBEDDED_APP_HTML = """
 </div>
 
 <script>
-// Initial Pattern
-const DEFAULT_CODE = `// Strudel Live Pattern
-setcpm(130/4) // 130 bpm
+// Default Pattern with rich browser WebAudio synthesis & samples
+const DEFAULT_CODE = `// Strudel Live Coding — Browser Audio (Speakers)
+setcpm(130/4) // 130 BPM
 
 stack(
-  s("bd*4").note(36).gain(1).midichan(1),
-  s("~ hh ~ hh").note(42).midichan(2),
-  s("~ cp ~ cp").note(39).gain(0.9).midichan(5),
-  note("<c2 c2 eb2 f2>*8").s("sawtooth").lpf(sine.range(300,900).slow(8)).struct("t(5,8)").midichan(7),
-  note("<[c4,eb4,g4] [ab3,c4,eb4]>").s("sawtooth").attack(0.01).release(0.3).struct("~ t").midichan(9)
-).midi('IAC Driver')`;
+  s("bd*4").bank("tr909").gain(1),
+  s("~ hh ~ [hh*2]").bank("tr909").gain(0.7),
+  s("~ cp ~ cp").bank("tr909").gain(0.85),
+  note("<c2 c2 eb2 f2>*8").s("sawtooth").lpf(sine.range(350,1400).slow(8)).decay(0.2).sustain(0.1).gain(0.6),
+  note("<[c4,eb4,g4] [ab3,c4,eb4]>").s("sawtooth").attack(0.02).release(0.4).struct("~ t").lpf(2000).gain(0.5)
+)`;
 
 let cmEditor;
 let isPlaying = false;
@@ -496,15 +496,26 @@ function togglePlayback() {
   }
 }
 
-function startPlayback() {
+async function startPlayback() {
   if (!cmEditor) return;
+
+  // Ensure WebAudio AudioContext is resumed on user click (browser autoplay requirement)
+  if (window.strudel && window.strudel.getAudioContext) {
+    try {
+      const ctx = window.strudel.getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+    } catch(e) { console.warn('AudioContext resume:', e); }
+  }
+
   const code = cmEditor.getValue();
   if (window.strudel && window.strudel.evaluate) {
     try {
       window.strudel.evaluate(code);
       isPlaying = true;
       updateUI(true);
-      document.getElementById('status-bar').innerText = "🔊 Playing pattern live...";
+      document.getElementById('status-bar').innerText = "🔊 Playing pattern through speakers...";
     } catch (err) {
       document.getElementById('status-bar').innerText = "⚠️ " + err.message;
     }
