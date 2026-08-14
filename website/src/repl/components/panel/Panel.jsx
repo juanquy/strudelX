@@ -7,6 +7,7 @@ import { useLogger } from '../useLogger';
 import { ConsoleTab } from './ConsoleTab';
 import ExportTab from './ExportTab';
 import DawArrangerTab from './DawArrangerTab';
+import AiCopilotTab from './AiCopilotTab';
 import { FilesTab } from './FilesTab';
 import { PatternsTab } from './PatternsTab';
 import { Reference } from './Reference';
@@ -146,6 +147,30 @@ function MainMenu({ context, isEmbedded = false, className }) {
       </button>
       {!isEmbedded && (
         <button
+          title="AI Music Copilot"
+          className={cx('cursor-pointer hover:opacity-75 flex items-center space-x-1 px-2 text-blue-400 font-semibold')}
+          onClick={() => {
+            setIsPanelOpened(true);
+            setTab('ai copilot');
+          }}
+        >
+          <span>✨ AI</span>
+        </button>
+      )}
+      {!isEmbedded && (
+        <button
+          title="DAW Studio & Arranger"
+          className={cx('cursor-pointer hover:opacity-75 flex items-center space-x-1 px-2 text-purple-400 font-semibold')}
+          onClick={() => {
+            setIsPanelOpened(true);
+            setTab('daw studio');
+          }}
+        >
+          <span>🎹 DAW</span>
+        </button>
+      )}
+      {!isEmbedded && (
+        <button
           title="share"
           className={cx('cursor-pointer hover:opacity-50 flex items-center space-x-1 px-2')}
           onClick={handleShare}
@@ -232,6 +257,7 @@ export function RightPanel({ context }) {
 
 const tabNames = {
   welcome: 'intro',
+  ai: 'ai copilot',
   daw: 'daw studio',
   patterns: 'patterns',
   sounds: 'sounds',
@@ -265,6 +291,8 @@ function PanelNav({ children, className, ...props }) {
 function PanelContent({ context, tab }) {
   useLogger();
   switch (tab) {
+    case tabNames.ai:
+      return <AiCopilotTab context={context} />;
     case tabNames.daw:
       return <DawArrangerTab context={context} />;
     case tabNames.patterns:
