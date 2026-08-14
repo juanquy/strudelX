@@ -166,6 +166,42 @@ function MainSettingsContent({ started }) {
           />
         </FormItem>
       )}
+      <FormItem label="Live MIDI Setup & Routing (Bitwig / DAW)">
+        <div className="p-3 bg-lineHighlight rounded-md border border-muted space-y-2">
+          <div className="text-xs text-muted-foreground">
+            Route live Strudel MIDI channels to external DAWs (Bitwig, Ableton, Logic) via virtual MIDI drivers:
+          </div>
+          <div className="flex gap-2 items-center">
+            <select className="bg-background text-xs h-8 border border-muted rounded px-2 text-foreground grow">
+              <option value="IAC Driver">IAC Driver Bus 1 (macOS)</option>
+              <option value="LoopMIDI">LoopMIDI (Windows)</option>
+              <option value="Virtual MIDI">Virtual MIDI Port</option>
+            </select>
+            <button
+              className="bg-background border border-muted px-3 py-1 text-xs rounded hover:opacity-75"
+              onClick={() => {
+                if (navigator.requestMIDIAccess) {
+                  navigator.requestMIDIAccess().then(access => {
+                    const outputs = Array.from(access.outputs.values());
+                    if (outputs.length > 0) {
+                      outputs[0].send([0x90, 60, 100]);
+                      setTimeout(() => outputs[0].send([0x80, 60, 0]), 200);
+                      alert(`Test note sent to ${outputs[0].name}!`);
+                    } else {
+                      alert('No active MIDI output ports found. Please enable IAC Driver or loopMIDI.');
+                    }
+                  });
+                } else {
+                  alert('WebMIDI is supported in Chrome, Edge, and Opera browsers.');
+                }
+              }}
+            >
+              Test Note (C4)
+            </button>
+          </div>
+        </div>
+      </FormItem>
+
       <FormItem label="Audio Engine Target">
         <AudioEngineTargetSelector
           target={audioEngineTarget}

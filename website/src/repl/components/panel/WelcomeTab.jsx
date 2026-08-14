@@ -19,7 +19,6 @@ export function WelcomeTab({ context }) {
         If you don't like what you hear, try <span className="underline">shuffle</span>! */}
       </p>
       <p>
-        {/* To learn more about what this all means, check out the{' '} */}
         To get started, check out the{' '}
         <a href={`${baseNoTrailing}/workshop/getting-started/`} target="_blank">
           interactive tutorial
@@ -30,6 +29,38 @@ export function WelcomeTab({ context }) {
         </a>{' '}
         to ask any questions, give feedback or just say hello.
       </p>
+
+      <div className="my-6 p-4 rounded-lg bg-lineHighlight border border-muted">
+        <h4 className="text-foreground font-bold mb-3 text-base flex items-center gap-2">
+          <span>⚡ Live Performance Keyboard Shortcuts</span>
+        </h4>
+        <div className="grid grid-cols-1 gap-2 text-xs font-mono">
+          <div className="flex justify-between py-1 border-b border-muted">
+            <span className="text-blue-400 font-bold">Ctrl + Enter / Cmd + Enter</span>
+            <span>Evaluate & Play Pattern</span>
+          </div>
+          <div className="flex justify-between py-1 border-b border-muted">
+            <span className="text-red-400 font-bold">Ctrl + . / Cmd + .</span>
+            <span>Hush / Stop All Audio</span>
+          </div>
+          <div className="flex justify-between py-1 border-b border-muted">
+            <span className="text-yellow-400 font-bold">Shift + Enter</span>
+            <span>Evaluate Current Line</span>
+          </div>
+          <div className="flex justify-between py-1 border-b border-muted">
+            <span className="text-purple-400 font-bold">Ctrl + Shift + Enter</span>
+            <span>Evaluate Code Block</span>
+          </div>
+          <div className="flex justify-between py-1 border-b border-muted">
+            <span className="text-green-400 font-bold">Alt + Up / Alt + Down</span>
+            <span>Increment / Decrement Number</span>
+          </div>
+          <div className="flex justify-between py-1">
+            <span className="text-cyan-400 font-bold">Ctrl + M / Cmd + M</span>
+            <span>Toggle Menu Drawer Panel</span>
+          </div>
+        </div>
+      </div>
       <h3>about</h3>
       <p>
         strudel is a JavaScript version of{' '}

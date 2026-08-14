@@ -135,7 +135,7 @@ function MainMenu({ context, isEmbedded = false, className }) {
       >
         <span className={cx('flex items-center space-x-2')}>
           {started ? <StopIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
-          <span>{pending ? '...' : started ? 'stop' : 'play'}</span>
+          {!isEmbedded && <span>{pending ? '...' : started ? 'stop' : 'play'}</span>}
         </span>
       </button>
       <button
@@ -143,42 +143,26 @@ function MainMenu({ context, isEmbedded = false, className }) {
         title="update"
         className={cx('flex items-center space-x-1 px-2', !isDirty || !activeCode ? 'opacity-50' : 'hover:opacity-50')}
       >
-        <span>update</span>
+        {!isEmbedded && <span>update</span>}
       </button>
-      <button
-        title="AI Music Copilot"
-        className={cx('cursor-pointer hover:opacity-75 flex items-center space-x-1 px-2 text-blue-400 font-semibold')}
-        onClick={() => {
-          setIsPanelOpened(true);
-          setTab('ai copilot');
-        }}
-      >
-        <span>✨ AI</span>
-      </button>
-      <button
-        title="DAW Studio & Arranger"
-        className={cx('cursor-pointer hover:opacity-75 flex items-center space-x-1 px-2 text-purple-400 font-semibold')}
-        onClick={() => {
-          setIsPanelOpened(true);
-          setTab('daw studio');
-        }}
-      >
-        <span>🎹 DAW</span>
-      </button>
-      <button
-        title="share"
-        className={cx('cursor-pointer hover:opacity-50 flex items-center space-x-1 px-2')}
-        onClick={handleShare}
-      >
-        <span>share</span>
-      </button>
-      <a
-        title="learn"
-        href={`${baseNoTrailing}/workshop/getting-started/`}
-        className={cx('hover:opacity-50 flex items-center space-x-1', 'p-2')}
-      >
-        <span>learn</span>
-      </a>
+      {!isEmbedded && (
+        <button
+          title="share"
+          className={cx('cursor-pointer hover:opacity-50 flex items-center space-x-1 px-2')}
+          onClick={handleShare}
+        >
+          <span>share</span>
+        </button>
+      )}
+      {!isEmbedded && (
+        <a
+          title="learn"
+          href={`${baseNoTrailing}/workshop/getting-started/`}
+          className={cx('hover:opacity-50 flex items-center space-x-1', !isEmbedded ? 'p-2' : 'px-2')}
+        >
+          <span>learn</span>
+        </a>
+      )}
     </div>
   );
 }
@@ -249,8 +233,8 @@ export function RightPanel({ context }) {
 
 const tabNames = {
   welcome: 'intro',
-  ai: 'ai copilot',
-  daw: 'daw studio',
+  'ai copilot': 'ai copilot',
+  'daw studio': 'daw studio',
   patterns: 'patterns',
   sounds: 'sounds',
   reference: 'reference',
