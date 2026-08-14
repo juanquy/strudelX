@@ -1,4 +1,4 @@
-# IMPORTANT: 'import spaces' MUST be the very first import before torch / transformers
+# IMPORTANT: 'import spaces' MUST be the very first line for Hugging Face ZeroGPU
 try:
     import spaces
     HAS_ZEROGPU = True
@@ -17,7 +17,6 @@ import os
 import torch
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
-from peft import PeftModel
 from threading import Thread
 
 MODEL_NAME = os.getenv("BASE_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
@@ -25,24 +24,26 @@ LORA_PATH = os.getenv("LORA_PATH", "./strudel-qwen-lora")
 
 print(f"📦 Loading tokenizer for {MODEL_NAME}...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-tokenizer.pad_token = tokenizer.eos_token
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
 
-print(f"🧠 Loading model {MODEL_NAME}...")
-device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"🧠 Loading base weights for {MODEL_NAME}...")
+# Load to CPU at startup; ZeroGPU attaches the GPU dynamically during generation
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
-    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-    device_map="auto" if torch.cuda.is_available() else None,
+    torch_dtype=torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16,
+    low_cpu_mem_usage=True,
     trust_remote_code=True,
 )
 
 if os.path.exists(LORA_PATH):
-    print(f"🔗 Merging LoRA adapter from {LORA_PATH}...")
+    print(f"🔗 Loading LoRA adapter from {LORA_PATH}...")
     try:
+        from peft import PeftModel
         model = PeftModel.from_pretrained(model, LORA_PATH)
         model = model.merge_and_unload()
     except Exception as e:
-        print(f"⚠️ LoRA load warning: {e}")
+        print(f"⚠️ LoRA load notice: {e}")
 
 model.eval()
 
@@ -59,6 +60,9 @@ Guidelines:
 @spaces.GPU(duration=60)
 def generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tokens):
     """ZeroGPU accelerated generation function."""
+    if torch.cuda.is_available():
+        model.to("cuda")
+
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     if current_code and current_code.strip():
@@ -73,14 +77,15 @@ def generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tok
         })
 
     prompt_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    inputs = tokenizer(prompt_text, return_tensors="pt").to(model.device)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    inputs = tokenizer(prompt_text, return_tensors="pt").to(device)
 
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
     generation_kwargs = dict(
         inputs,
         streamer=streamer,
         max_new_tokens=int(max_tokens),
-        temperature=float(temperature),
+        temperature=max(0.01, float(temperature)),
         top_p=0.9,
         do_sample=True,
     )
@@ -92,6 +97,8 @@ def generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tok
     for new_text in streamer:
         accumulated_text += new_text
         yield accumulated_text
+
+    thread.join()
 
 
 EXAMPLES = [
