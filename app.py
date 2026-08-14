@@ -109,49 +109,8 @@ def generate_strudel_code(prompt, current_code="", genre="Progressive House", bp
     return accumulated_text.strip()
 
 
-FULL_SCREEN_APP_HTML = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Strudel REPL & AI Studio</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body, html { width: 100vw; height: 100vh; overflow: hidden; background: #0b0b0d; }
-  #strudel-frame {
-    width: 100vw;
-    height: 100vh;
-    border: none;
-    display: block;
-  }
-</style>
-</head>
-<body>
-<iframe
-  id="strudel-frame"
-  src="/repl"
-  allow="autoplay *; sound-active *; audio-capture *; midi *; microphone *; speaker-selection *; clipboard-read *; clipboard-write *"
-></iframe>
-</body>
-</html>
-"""
-
-custom_css = """
-body, .gradio-container {
-    margin: 0 !important;
-    padding: 0 !important;
-    max-width: 100vw !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    overflow: hidden !important;
-    background: #0b0b0d !important;
-}
-footer { display: none !important; }
-"""
-
-with gr.Blocks(title="Strudel AI Studio", theme=gr.themes.Monochrome(), css=custom_css) as demo:
-    gr.HTML(FULL_SCREEN_APP_HTML)
-
+# Gradio block satisfying Hugging Face Space SDK requirements
+with gr.Blocks(title="Strudel AI Studio") as demo:
     with gr.Row(visible=False):
         prompt_in = gr.Textbox()
         code_in = gr.Textbox()
@@ -170,17 +129,28 @@ with gr.Blocks(title="Strudel AI Studio", theme=gr.themes.Monochrome(), css=cust
 
 app = gr.routes.App.create_app(demo)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "website", "dist"))
 
 if os.path.exists(DIST_DIR):
-    for folder in ["_astro", "fonts", "icons", "img", "pwa"]:
+    # Mount sub-folders for static assets
+    for folder in ["_astro", "fonts", "icons", "img", "pwa", "bakery", "learn", "workshop", "technical-manual", "recipes"]:
         subpath = os.path.join(DIST_DIR, folder)
         if os.path.exists(subpath):
             app.mount(f"/{folder}", StaticFiles(directory=subpath), name=folder)
 
-    @app.get("/repl")
-    async def serve_repl():
-        return FileResponse(os.path.join(DIST_DIR, "index.html"))
+    # Directly serve official Strudel REPL at root GET / without nested iframes
+    @app.get("/")
+    async def serve_index(request: Request):
+        index_path = os.path.join(DIST_DIR, "index.html")
+        return FileResponse(index_path)
 
     @app.post("/api/generate_pattern")
     async def api_generate_pattern(req: Request):
