@@ -292,25 +292,24 @@ function PanelContent({ context, tab }) {
 
 function PanelTab({ label, isSelected, onClick }) {
   return (
-    <>
-      <button
-        onClick={onClick}
-        className={cx(
-          'h-10 px-2.5 text-sm border-t-2 border-t-transparent text-foreground cursor-pointer hover:opacity-75 flex items-center space-x-1 border-b-2 whitespace-nowrap shrink-0',
-          isSelected ? 'border-foreground font-semibold' : 'border-transparent opacity-80',
-        )}
-      >
-        {label}
-      </button>
-    </>
+    <button
+      onClick={onClick}
+      className={cx(
+        'h-full px-3 text-xs font-mono font-semibold tracking-wide uppercase cursor-pointer hover:text-blue-400 flex items-center justify-center whitespace-nowrap shrink-0 border-b-2 transition-all',
+        isSelected ? 'border-blue-500 text-blue-400 font-bold bg-muted/20' : 'border-transparent text-foreground/80 opacity-80',
+      )}
+    >
+      {label}
+    </button>
   );
 }
+
 function Tabs({ className }) {
   const { isPanelOpen, activeFooter: tab } = useSettings();
   return (
     <div
       className={cx(
-        'px-2 w-full flex select-none max-w-full h-10 max-h-10 min-h-10 overflow-x-auto overflow-y-hidden items-center space-x-1 shrink-0',
+        'px-1 w-full flex select-none max-w-full h-full overflow-x-auto overflow-y-hidden items-center space-x-1 shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         className,
       )}
     >
