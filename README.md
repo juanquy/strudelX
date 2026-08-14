@@ -7,7 +7,7 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: agpl-3.0
-short_description: Full Strudel live-coding web REPL with integrated AI Copilot and 13-channel DAW arranger
+short_description: Strudel REPL with AI Copilot and 13-CH DAW
 ---
 
 # strudel
