@@ -1,0 +1,29 @@
+name: Sync to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_URL: ${{ secrets.HF_SPACE_URL }}
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE_URL" ]; then
+            echo "Secrets HF_TOKEN and HF_SPACE_URL are required in GitHub Secrets."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add space "https://juanquy:$HF_TOKEN@$HF_SPACE_URL" || true
+          git push space main --force
