@@ -1,0 +1,50 @@
+[
+  {
+    "name": "SwitchAngel",
+    "url": "https://www.youtube.com/@Switch-Angel",
+    "category": "Techno / Electronic / Acid / Live Coding",
+    "description": "SwitchAngel Strudel live coding performances, dance music, acid synths"
+  },
+  {
+    "name": "Prod.peppin",
+    "url": "https://www.youtube.com/@Prod.peppin",
+    "category": "Tutorials / Production / Strudel Basics & Advanced",
+    "description": "PEPPIN! tutorials covering live coding techniques, drums, chords, synths"
+  },
+  {
+    "name": "GroovinInG",
+    "url": "https://www.youtube.com/@groovining",
+    "category": "Theory / Algorithmic Patterns / Grooves",
+    "description": "Groovin in G live coding, musical patterns, scales, microtonality"
+  },
+  {
+    "name": "DJ_Dave_Dance_Music",
+    "url": "https://www.youtube.com/watch?v=ZCcpWzhekEY",
+    "category": "Dance Music / Algorave",
+    "description": "DJ_Dave — coding dance music in Strudel"
+  },
+  {
+    "name": "Sound_Codex_Eurodance",
+    "url": "https://www.youtube.com/watch?v=7mbrEyZctM0",
+    "category": "Eurodance / Trance",
+    "description": "Sound Codex — Livecoding Eurodance in Strudel"
+  },
+  {
+    "name": "Shovon_Saha_Techno",
+    "url": "https://www.youtube.com/watch?v=ECBUfntt1tc",
+    "category": "Techno / Industrial",
+    "description": "Shovon Saha — Strudel techno live coding"
+  },
+  {
+    "name": "PEPPIN_Beginner_Tutorial",
+    "url": "https://www.youtube.com/watch?v=vvpet3_yaVQ",
+    "category": "Beginner Tutorial / Fundamentals",
+    "description": "PEPPIN! — Live Coding Tutorial for Beginners in Strudel"
+  },
+  {
+    "name": "Lucy_Cheesman_Tutorial",
+    "url": "https://www.youtube.com/watch?v=QRJ0xrjLj6A",
+    "category": "Algorave / Composition",
+    "description": "Lucy Cheesman — Learn how to make music through live coding"
+  }
+]

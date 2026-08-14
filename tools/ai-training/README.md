@@ -16,13 +16,26 @@ pip install -r requirements.txt
 
 ---
 
-## 2. Ingest YouTube Video & Build Dataset
+## 2. Ingest Curated YouTube Channels & Tutorials
 
-Run `ingest_youtube.py` with your target YouTube tutorial URL or playlist:
+You can ingest all target creators (**SwitchAngel, PEPPIN!, Groovin in G, DJ_Dave, Lucy Cheesman, Sound Codex, Shovon Saha**) in one command:
+
+```bash
+python batch_ingest.py \
+  --config "curated_channels.json" \
+  --out-dir "./master_dataset" \
+  --whisper-model "base" \
+  --max-videos-per-channel 10 \
+  --interval 3.0
+```
+
+This will automatically discover and download the videos, transcribe spoken techniques via Whisper, extract code states from screen frames via OCR, and build a unified `strudel_master_dataset.jsonl`.
+
+Or run single video ingestion:
 
 ```bash
 python ingest_youtube.py \
-  --url "https://www.youtube.com/watch?v=YOUR_VIDEO_ID" \
+  --url "https://www.youtube.com/watch?v=ZCcpWzhekEY" \
   --out "./dataset_out" \
   --whisper-model "base" \
   --interval 3.0
