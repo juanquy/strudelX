@@ -126,8 +126,14 @@ export function Footer({ context, isEmbedded = false }) {
 function MainMenu({ context, isEmbedded = false, className }) {
   const { started, pending, isDirty, activeCode, handleTogglePlay, handleEvaluate, handleShare } = context;
   const { isCSSAnimationDisabled } = useSettings();
+
+  const openTab = (tabName) => {
+    setTab(tabName);
+    setIsPanelOpened(true);
+  };
+
   return (
-    <div className={cx('flex text-sm max-w-full shrink-0 overflow-hidden text-foreground px-2 h-10', className)}>
+    <div className={cx('flex text-sm max-w-full shrink-0 overflow-hidden text-foreground px-2 h-10 items-center space-x-1', className)}>
       <button
         onClick={handleTogglePlay}
         title={started ? 'stop' : 'play'}
@@ -145,6 +151,27 @@ function MainMenu({ context, isEmbedded = false, className }) {
       >
         {!isEmbedded && <span>update</span>}
       </button>
+
+      {!isEmbedded && (
+        <button
+          onClick={() => openTab('ai')}
+          title="AI Copilot"
+          className="px-2 py-1 text-blue-400 font-semibold hover:text-blue-300 flex items-center space-x-1 rounded bg-blue-950/40 border border-blue-800/60 transition-colors"
+        >
+          <span>✨ AI</span>
+        </button>
+      )}
+
+      {!isEmbedded && (
+        <button
+          onClick={() => openTab('daw')}
+          title="DAW Studio"
+          className="px-2 py-1 text-purple-400 font-semibold hover:text-purple-300 flex items-center space-x-1 rounded bg-purple-950/40 border border-purple-800/60 transition-colors"
+        >
+          <span>🎹 DAW</span>
+        </button>
+      )}
+
       {!isEmbedded && (
         <button
           title="share"
@@ -233,8 +260,6 @@ export function RightPanel({ context }) {
 
 const tabNames = {
   welcome: 'intro',
-  'ai copilot': 'ai copilot',
-  'daw studio': 'daw studio',
   patterns: 'patterns',
   sounds: 'sounds',
   reference: 'reference',
@@ -267,9 +292,11 @@ function PanelNav({ children, className, ...props }) {
 function PanelContent({ context, tab }) {
   useLogger();
   switch (tab) {
-    case tabNames.ai:
+    case 'ai':
+    case 'ai copilot':
       return <AiCopilotTab context={context} />;
-    case tabNames.daw:
+    case 'daw':
+    case 'daw studio':
       return <DawArrangerTab context={context} />;
     case tabNames.patterns:
       return <PatternsTab context={context} />;
