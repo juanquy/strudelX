@@ -66,42 +66,28 @@ export default function AiCopilotTab({ context }) {
 
     try {
       abortControllerRef.current = new AbortController();
-      const baseUrl = hfEndpoint.replace(/\/+$/, '');
+      const origin = window.location.origin;
       
-      // Try calling Gradio API (/api/generate or direct gradio run)
-      const res = await fetch(`${baseUrl}/api/generate`, {
+      const res = await fetch(`${origin}/api/generate_pattern`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          data: [prompt, currentCode, genre, bpm, temperature, 1024],
+          prompt,
+          current_code: currentCode,
+          genre,
+          bpm,
+          temperature,
         }),
         signal: abortControllerRef.current.signal,
       });
 
       if (!res.ok) {
-        // Fallback to direct Gradio call
-        const fallbackRes = await fetch(`${baseUrl}/run/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            data: [prompt, currentCode, genre, bpm, temperature, 1024],
-          }),
-          signal: abortControllerRef.current.signal,
-        });
-
-        if (!fallbackRes.ok) {
-          throw new Error(`API returned HTTP ${res.status}: ${res.statusText}`);
-        }
-
-        const data = await fallbackRes.json();
-        const codeResult = Array.isArray(data.data) ? data.data[0] : JSON.stringify(data);
-        cleanAndSetCode(codeResult);
-      } else {
-        const data = await res.json();
-        const codeResult = Array.isArray(data.data) ? data.data[0] : (data.code || JSON.stringify(data));
-        cleanAndSetCode(codeResult);
+        throw new Error(`API returned HTTP ${res.status}: ${res.statusText}`);
       }
 
+      const data = await res.json();
+      const codeResult = data.code || (Array.isArray(data.data) ? data.data[0] : JSON.stringify(data));
+      cleanAndSetCode(codeResult);
       setStatusMsg('✅ Generation complete!');
     } catch (err) {
       if (err.name === 'AbortError') {
