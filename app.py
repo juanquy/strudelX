@@ -16,6 +16,7 @@ except ImportError:
 import os
 import re
 import torch
+import gradio as gr
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -59,19 +60,10 @@ Guidelines:
 3. Use rich built-in sound banks (e.g. .bank("tr909"), .bank("tr808"), sawtooth, triangle, sine).
 4. Prioritize clean, runnable Strudel JavaScript."""
 
-app = FastAPI(title="Strudel REPL & AI Studio")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 
 @spaces.GPU(duration=60)
-def generate_code_fn(prompt, current_code="", genre="Progressive House", bpm=130, temperature=0.7, max_tokens=1024):
+def generate_strudel_code(prompt, current_code="", genre="Progressive House", bpm=130, temperature=0.7, max_tokens=1024):
+    """ZeroGPU accelerated generation function registered with Gradio."""
     if torch.cuda.is_available():
         model.to("cuda")
 
@@ -117,40 +109,91 @@ def generate_code_fn(prompt, current_code="", genre="Progressive House", bpm=130
     return accumulated_text.strip()
 
 
-@app.post("/api/generate_pattern")
-async def api_generate_pattern(req: Request):
-    try:
-        data = await req.json()
-        prompt = data.get("prompt", "")
-        current_code = data.get("current_code", "")
-        genre = data.get("genre", "Progressive House")
-        bpm = data.get("bpm", 130)
-        code = generate_code_fn(prompt, current_code, genre, bpm)
-        return JSONResponse({"code": code, "data": [code]})
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+FULL_SCREEN_APP_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Strudel REPL & AI Studio</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body, html { width: 100vw; height: 100vh; overflow: hidden; background: #0b0b0d; }
+  #strudel-frame {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    display: block;
+  }
+</style>
+</head>
+<body>
+<iframe
+  id="strudel-frame"
+  src="/repl"
+  allow="autoplay *; sound-active *; audio-capture *; midi *; microphone *; speaker-selection *; clipboard-read *; clipboard-write *"
+></iframe>
+</body>
+</html>
+"""
 
+custom_css = """
+body, .gradio-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100vw !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+    background: #0b0b0d !important;
+}
+footer { display: none !important; }
+"""
 
-@app.post("/api/generate")
-async def api_generate(req: Request):
-    try:
-        data = await req.json()
-        params = data.get("data", [])
-        prompt = params[0] if len(params) > 0 else ""
-        current_code = params[1] if len(params) > 1 else ""
-        genre = params[2] if len(params) > 2 else "Progressive House"
-        bpm = params[3] if len(params) > 3 else 130
-        code = generate_code_fn(prompt, current_code, genre, bpm)
-        return JSONResponse({"data": [code], "code": code})
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+with gr.Blocks(title="Strudel AI Studio", theme=gr.themes.Monochrome(), css=custom_css) as demo:
+    gr.HTML(FULL_SCREEN_APP_HTML)
 
+    with gr.Row(visible=False):
+        prompt_in = gr.Textbox()
+        code_in = gr.Textbox()
+        genre_in = gr.Textbox()
+        bpm_in = gr.Number()
+        temp_in = gr.Number()
+        tokens_in = gr.Number()
+        out_code = gr.Textbox()
+        gen_btn = gr.Button("api_run")
+        gen_btn.click(
+            fn=generate_strudel_code,
+            inputs=[prompt_in, code_in, genre_in, bpm_in, temp_in, tokens_in],
+            outputs=out_code,
+            api_name="generate_pattern"
+        )
+
+app = gr.routes.App.create_app(demo)
 
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "website", "dist"))
 
 if os.path.exists(DIST_DIR):
-    app.mount("/", StaticFiles(directory=DIST_DIR, html=True), name="static")
+    for folder in ["_astro", "fonts", "icons", "img", "pwa"]:
+        subpath = os.path.join(DIST_DIR, folder)
+        if os.path.exists(subpath):
+            app.mount(f"/{folder}", StaticFiles(directory=subpath), name=folder)
+
+    @app.get("/repl")
+    async def serve_repl():
+        return FileResponse(os.path.join(DIST_DIR, "index.html"))
+
+    @app.post("/api/generate_pattern")
+    async def api_generate_pattern(req: Request):
+        try:
+            data = await req.json()
+            prompt = data.get("prompt", "")
+            current_code = data.get("current_code", "")
+            genre = data.get("genre", "Progressive House")
+            bpm = data.get("bpm", 130)
+            code = generate_strudel_code(prompt, current_code, genre, bpm)
+            return JSONResponse({"code": code, "data": [code]})
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    demo.queue().launch(server_name="0.0.0.0", server_port=7860)
