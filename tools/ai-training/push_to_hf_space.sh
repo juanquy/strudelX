@@ -5,7 +5,7 @@ echo "🚀 Pushing full Strudel Web REPL with AI Copilot & DAW Studio to Hugging
 git branch -D hf-space 2>/dev/null || true
 git checkout --orphan hf-space
 git reset
-git add .
+git add -f website/dist .
 git reset docs/iclc2023-paper/
 git commit -m "Deploy full official Strudel Web REPL with AI Copilot & DAW Studio"
 git push space hf-space:main --force
