@@ -503,13 +503,13 @@ window.onload = async () => {
   });
   cmEditor.setValue(DEFAULT_CODE);
 
-  if (window.strudel && window.strudel.initStrudel) {
-    try {
-      await window.strudel.initStrudel({
-        prebake: () => window.strudel.samples && window.strudel.samples('github:tidalcycles/dirt-samples')
-      });
-    } catch(e) { console.warn('Strudel init:', e); }
-  }
+  // Initialize Strudel audio engine — functions are bare globals, NOT under window.strudel
+  try {
+    await initStrudel({
+      prebake: () => samples('github:tidalcycles/dirt-samples')
+    });
+    console.log('✅ Strudel audio engine initialized');
+  } catch(e) { console.warn('Strudel init:', e); }
   refreshMidi();
 };
 
@@ -524,33 +524,27 @@ function togglePlayback() {
 async function startPlayback() {
   if (!cmEditor) return;
 
-  // Ensure WebAudio AudioContext is resumed on user click (browser autoplay policy)
-  if (window.strudel && window.strudel.getAudioContext) {
-    try {
-      const ctx = window.strudel.getAudioContext();
-      if (ctx && ctx.state === 'suspended') {
-        await ctx.resume();
-      }
-    } catch(e) { console.warn('AudioContext resume:', e); }
-  }
+  // Resume AudioContext on user gesture (browser autoplay policy)
+  try {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+  } catch(e) { console.warn('AudioContext resume:', e); }
 
   const code = cmEditor.getValue();
-  if (window.strudel && window.strudel.evaluate) {
-    try {
-      await window.strudel.evaluate(code);
-      isPlaying = true;
-      updateUI(true);
-      document.getElementById('status-bar').innerText = "🔊 Playing pattern through speakers...";
-    } catch (err) {
-      document.getElementById('status-bar').innerText = "⚠️ " + err.message;
-    }
+  try {
+    await evaluate(code);
+    isPlaying = true;
+    updateUI(true);
+    document.getElementById('status-bar').innerText = "🔊 Playing pattern through speakers...";
+  } catch (err) {
+    document.getElementById('status-bar').innerText = "⚠️ " + err.message;
   }
 }
 
 function stopPlayback() {
-  if (window.strudel && window.strudel.hush) {
-    window.strudel.hush();
-  }
+  try { hush(); } catch(e) { console.warn('hush:', e); }
   isPlaying = false;
   updateUI(false);
   document.getElementById('status-bar').innerText = "⏹️ Stopped.";
