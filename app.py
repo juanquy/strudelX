@@ -28,7 +28,6 @@ if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
 print(f"🧠 Loading base weights for {MODEL_NAME}...")
-# Load to CPU at startup; ZeroGPU attaches the GPU dynamically during generation
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16,
@@ -101,65 +100,60 @@ def generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tok
     thread.join()
 
 
-EXAMPLES = [
-    [
-        "Create a driving 130 BPM progressive house arrangement with Euclidean bass, punchcard drums, and IAC Driver MIDI routing across channels 1-13.",
-        "",
-        "Progressive House",
-        130,
-        0.7,
-        1024
-    ],
-    [
-        "Generate a dark, hypnotic techno loop with an acid bassline modulated by a slow LPF sine wave and 16th-note hi-hats.",
-        "",
-        "Techno",
-        132,
-        0.7,
-        1024
-    ],
-    [
-        "Transform this simple 4-on-the-floor beat into a syncopated UK garage / 2-step groove with swing.",
-        's("bd*4").gain(1)\ns("~ sd ~ sd").gain(0.8)\ns("hh*8").gain(0.5)',
-        "UK Garage / Breakbeat",
-        134,
-        0.6,
-        1024
-    ],
-]
-
 custom_css = """
-.gradio-container {
-    background-color: #0b0b0d;
-    color: #e8e6e1;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+body, .gradio-container {
+    background-color: #0b0b0d !important;
+    color: #e8e6e1 !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 }
-.gr-button-primary {
-    background: #3b8eff !important;
-    border: none !important;
+iframe {
+    border: 1px solid #232328;
+    border-radius: 8px;
+    background: #000;
 }
 """
 
-with gr.Blocks(title="Strudel AI Studio — ZeroGPU Assistant", theme=gr.themes.Monochrome(), css=custom_css) as demo:
+with gr.Blocks(title="Strudel AI Studio — Live REPL & ZeroGPU Copilot", theme=gr.themes.Monochrome(), css=custom_css) as demo:
     gr.Markdown(
         """
         # 🎵 Strudel AI Studio
-        ### Live Coding Music Copilot & 13-Channel Bitwig Arranger (Powered by Hugging Face ZeroGPU)
+        ### Live Coding REPL with Integrated ZeroGPU AI Copilot & 13-Channel Bitwig Arranger
         """
     )
 
     with gr.Row():
-        with gr.Column(scale=1):
+        # Left side: Live Interactive Strudel REPL
+        with gr.Column(scale=3):
+            gr.Markdown("### 🎹 Interactive Strudel REPL Editor & Live Sound Engine")
+            strudel_iframe = gr.HTML(
+                """
+                <iframe
+                    id="strudel-repl"
+                    src="https://strudel.cc"
+                    width="100%"
+                    height="720px"
+                    allow="midi; microphone; audio-capture"
+                    style="border: 1px solid #333338; border-radius: 8px;"
+                ></iframe>
+                """
+            )
+
+        # Right side: AI Copilot & DAW Studio
+        with gr.Column(scale=2):
+            gr.Markdown("### ✨ AI Copilot (ZeroGPU A100)")
             prompt_input = gr.Textbox(
                 label="Prompt / Musical Idea",
-                placeholder="e.g. Create a rolling techno bass with Euclidean rhythm and 13-channel MIDI output for Bitwig",
+                placeholder="e.g. Create a 130 BPM progressive house arrangement with Euclidean bass and 13-channel MIDI routing for Bitwig",
                 lines=3,
             )
             code_input = gr.Textbox(
-                label="Current Code (Optional, for editing / transforming)",
-                placeholder="Paste existing Strudel code here to modify it...",
-                lines=4,
+                label="Current Pattern Code (Optional)",
+                placeholder="Paste code here to transform or remix...",
+                lines=3,
             )
+
             with gr.Row():
                 genre_dropdown = gr.Dropdown(
                     label="Genre",
@@ -168,26 +162,17 @@ with gr.Blocks(title="Strudel AI Studio — ZeroGPU Assistant", theme=gr.themes.
                 )
                 bpm_input = gr.Number(label="BPM", value=130, precision=0)
 
-            with gr.Accordion("Advanced Generation Settings", open=False):
+            with gr.Accordion("Model Settings", open=False):
                 temp_slider = gr.Slider(minimum=0.1, maximum=1.2, value=0.7, step=0.05, label="Temperature")
                 tokens_slider = gr.Slider(minimum=256, maximum=2048, value=1024, step=128, label="Max Tokens")
 
             generate_btn = gr.Button("🚀 Generate Strudel Pattern", variant="primary")
 
-        with gr.Column(scale=1):
             output_code = gr.Code(
-                label="Generated Strudel Code",
+                label="AI Generated Code (Copy & Paste to Live REPL)",
                 language="javascript",
-                lines=20,
+                lines=12,
             )
-
-    gr.Examples(
-        examples=EXAMPLES,
-        inputs=[prompt_input, code_input, genre_dropdown, bpm_input, temp_slider, tokens_slider],
-        outputs=output_code,
-        fn=generate_strudel_code,
-        cache_examples=False,
-    )
 
     generate_btn.click(
         fn=generate_strudel_code,
