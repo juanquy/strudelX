@@ -13,7 +13,7 @@ export default function ReplEditor(Props) {
   const { containerRef, editorRef, error, init, pending } = context;
   const settings = useSettings();
   const { panelPosition, isZen } = settings;
-  const isEmbedded = typeof window !== 'undefined' && window.location !== window.parent.location;
+  const isEmbedded = Props.embedded || false;
 
   return (
     <div className="h-full flex flex-col relative" {...editorProps}>

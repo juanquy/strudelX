@@ -149,6 +149,11 @@ FULL_SCREEN_HTML = """
     transition: all 0.2s ease;
   }
   .nav-btn:hover { background: rgba(255,255,255,0.1); }
+  .nav-btn.play-btn { color: #4ade80; border-color: rgba(74, 222, 128, 0.35); background: rgba(74, 222, 128, 0.12); font-weight: 700; }
+  .nav-btn.play-btn:hover { background: rgba(74, 222, 128, 0.25); }
+  .nav-btn.play-btn.playing { color: #f87171; border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.2); }
+  .nav-btn.update-btn { color: #facc15; border-color: rgba(250, 204, 21, 0.35); background: rgba(250, 204, 21, 0.12); font-weight: 700; }
+  .nav-btn.update-btn:hover { background: rgba(250, 204, 21, 0.25); }
   .nav-btn.ai-btn { color: #60a5fa; border-color: rgba(96, 165, 250, 0.3); background: rgba(96, 165, 250, 0.1); }
   .nav-btn.ai-btn:hover { background: rgba(96, 165, 250, 0.25); }
   .nav-btn.daw-btn { color: #c084fc; border-color: rgba(192, 132, 252, 0.3); background: rgba(192, 132, 252, 0.1); }
@@ -317,8 +322,15 @@ FULL_SCREEN_HTML = """
   allow="midi; microphone; audio-capture"
 ></iframe>
 
-<!-- Floating Navigation Bar -->
+<!-- Floating Navigation & Transport Bar -->
 <div class="top-action-bar">
+  <button id="btn-play-toggle" class="nav-btn play-btn" onclick="togglePlayback()" title="Play / Stop Pattern (Ctrl+.)">
+    <span id="play-icon">▶</span>
+    <span id="play-text">play</span>
+  </button>
+  <button class="nav-btn update-btn" onclick="triggerUpdate()" title="Update Pattern (Ctrl+Enter)">
+    <span>⚡ update</span>
+  </button>
   <button class="nav-btn ai-btn" onclick="openDrawer('ai')">
     <span>✨ AI Copilot</span>
   </button>
@@ -591,6 +603,44 @@ function refreshMidi() {
     });
   }
 }
+
+let isPlaying = false;
+function togglePlayback() {
+  isPlaying = !isPlaying;
+  const frame = document.getElementById('strudel-frame');
+  const btn = document.getElementById('btn-play-toggle');
+  const icon = document.getElementById('play-icon');
+  const text = document.getElementById('play-text');
+
+  if (isPlaying) {
+    frame.contentWindow.postMessage('play', '*');
+    icon.innerText = '⏹';
+    text.innerText = 'stop';
+    btn.classList.add('playing');
+  } else {
+    frame.contentWindow.postMessage('stop', '*');
+    icon.innerText = '▶';
+    text.innerText = 'play';
+    btn.classList.remove('playing');
+  }
+}
+
+function triggerUpdate() {
+  const frame = document.getElementById('strudel-frame');
+  frame.contentWindow.postMessage('evaluate', '*');
+}
+
+// Global hotkeys (Ctrl+Enter / Cmd+Enter for evaluate, Ctrl+. / Cmd+. for stop)
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    triggerUpdate();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === '.') {
+    e.preventDefault();
+    togglePlayback();
+  }
+});
 </script>
 
 </body>
