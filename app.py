@@ -18,9 +18,6 @@ import re
 import html
 import torch
 import gradio as gr
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from threading import Thread
 
@@ -58,21 +55,21 @@ Guidelines:
 1. Always output valid Strudel JavaScript code directly.
 2. Use expressive mini-notation (e.g., s("bd [sd ~] [hh*4]"), struct("t(5,8)")).
 3. Use rich built-in sound banks (e.g. .bank("tr909"), .bank("tr808"), sawtooth, triangle, sine).
-4. Do not include excessive commentary—prioritize clean, runnable Strudel JavaScript."""
+4. Do not include markdown commentary outside code blocks—prioritize clean, runnable Strudel JavaScript."""
 
 
 @spaces.GPU(duration=60)
 def generate_strudel_code(prompt, current_code, genre, bpm, temperature=0.7, max_tokens=1024):
-    """ZeroGPU accelerated generation function."""
+    """ZeroGPU accelerated generation function registered with Gradio."""
     if torch.cuda.is_available():
         model.to("cuda")
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
-    if current_code and current_code.strip():
+    if current_code and str(current_code).strip():
         messages.append({
             "role": "user",
-            "content": f"Current Strudel code:\n```javascript\n{current_code.strip()}\n```\n\nTask: {prompt}\nGenre: {genre}, Tempo: {bpm} BPM."
+            "content": f"Current Strudel code:\n```javascript\n{str(current_code).strip()}\n```\n\nTask: {prompt}\nGenre: {genre}, Tempo: {bpm} BPM."
         })
     else:
         messages.append({
@@ -100,9 +97,14 @@ def generate_strudel_code(prompt, current_code, genre, bpm, temperature=0.7, max
     accumulated_text = ""
     for new_text in streamer:
         accumulated_text += new_text
-        yield accumulated_text
 
     thread.join()
+
+    # Clean markdown if present
+    m = re.search(r'```(?:javascript|js)?([\s\S]*?)```', accumulated_text)
+    if m:
+        return m.group(1).strip()
+    return accumulated_text.strip()
 
 
 # Self-Contained Complete Strudel REPL with zero iframe restrictions
@@ -456,6 +458,25 @@ EMBEDDED_APP_HTML = """
   </div>
 </div>
 
+<script type="module">
+// Load Gradio Client for ZeroGPU prediction
+import { Client } from 'https://cdn.jsdelivr.net/npm/@gradio/client@1.9.0/dist/index.min.js';
+
+window.callZeroGpuModel = async function(prompt, currentCode, genre, bpm) {
+  const client = await Client.connect(window.location.origin);
+  const result = await client.predict('/generate_pattern', [
+    prompt,
+    currentCode,
+    genre,
+    bpm,
+    0.7,
+    1024
+  ]);
+  let code = Array.isArray(result.data) ? result.data[0] : result.data;
+  return code;
+};
+</script>
+
 <script>
 // Default Pattern with rich browser WebAudio synthesis & samples
 const DEFAULT_CODE = `// Strudel Live Coding — Browser Audio (Speakers)
@@ -609,33 +630,24 @@ async function generateAiPattern() {
   status.innerText = "Generating pattern with Qwen 2.5 Coder...";
 
   try {
-    const res = await fetch('/api/generate_pattern', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: prompt,
-        current_code: cmEditor.getValue(),
-        genre: genre,
-        bpm: parseInt(bpm),
-        temperature: 0.7,
-        max_tokens: 1024
-      })
-    });
-    
-    if (!res.ok) throw new Error("API status: " + res.status);
-    const data = await res.json();
-    let code = data.code || "";
+    let code = "";
+    if (window.callZeroGpuModel) {
+      code = await window.callZeroGpuModel(prompt, cmEditor.getValue(), genre, parseInt(bpm));
+    }
     if (!code) throw new Error("No code returned from model");
+
+    const match = code.match(/```(?:javascript|js)?([\s\S]*?)```/);
+    if (match) code = match[1].trim();
 
     activeGeneratedCode = code;
     
-    // DIRECT INJECTION INTO EDITOR:
+    // DIRECT INJECTION INTO MAIN EDITOR:
     cmEditor.setValue(activeGeneratedCode);
     document.getElementById('ai-output').innerText = activeGeneratedCode;
     document.getElementById('ai-output-container').style.display = 'flex';
     status.innerText = "✅ Pattern generated and loaded!";
     
-    // Close drawer and start playback immediately!
+    // Close drawer and start playback immediately
     closeDrawer('ai');
     startPlayback();
   } catch (e) {
@@ -747,43 +759,25 @@ body, .gradio-container {
 footer { display: none !important; }
 """
 
-# Build FastAPI backend with direct REST endpoint
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.post("/api/generate_pattern")
-async def api_generate_pattern(req: Request):
-    body = await req.json()
-    prompt = body.get("prompt", "")
-    current_code = body.get("current_code", "")
-    genre = body.get("genre", "Progressive House")
-    bpm = int(body.get("bpm", 130))
-    temperature = float(body.get("temperature", 0.7))
-    max_tokens = int(body.get("max_tokens", 1024))
-    
-    result_code = ""
-    for chunk in generate_strudel_code(prompt, current_code, genre, bpm, temperature, max_tokens):
-        result_code = chunk
-    
-    m = re.search(r'```(?:javascript|js)?([\s\S]*?)```', result_code)
-    if m:
-        result_code = m.group(1).strip()
-    
-    return JSONResponse({"code": result_code})
-
 with gr.Blocks(title="Strudel AI Studio", theme=gr.themes.Monochrome(), css=custom_css) as demo:
     gr.HTML(FULL_SCREEN_WRAPPER)
 
-# Mount Gradio Blocks onto FastAPI
-app = gr.mount_gradio_app(app, demo, path="/")
+    # Registered Gradio ZeroGPU Component
+    with gr.Row(visible=False):
+        prompt_in = gr.Textbox()
+        code_in = gr.Textbox()
+        genre_in = gr.Textbox()
+        bpm_in = gr.Number()
+        temp_in = gr.Number()
+        tokens_in = gr.Number()
+        out_code = gr.Textbox()
+        gen_btn = gr.Button("api_run")
+        gen_btn.click(
+            fn=generate_strudel_code,
+            inputs=[prompt_in, code_in, genre_in, bpm_in, temp_in, tokens_in],
+            outputs=out_code,
+            api_name="generate_pattern"
+        )
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    demo.launch(server_name="0.0.0.0", server_port=7860)
