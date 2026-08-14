@@ -67,8 +67,11 @@ export default function AiCopilotTab({ context }) {
     try {
       abortControllerRef.current = new AbortController();
       const origin = window.location.origin;
-      
-      const res = await fetch(`${origin}/api/generate_pattern`, {
+      const targetApiUrl = (origin.includes('localhost') || origin.includes('127.0.0.1') || !origin.includes('hf.space'))
+        ? `${hfEndpoint}/api/generate_pattern`
+        : `${origin}/api/generate_pattern`;
+
+      const res = await fetch(targetApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
