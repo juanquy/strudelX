@@ -18,6 +18,10 @@ import re
 import html
 import torch
 import gradio as gr
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from threading import Thread
 
@@ -116,7 +120,7 @@ FULL_SCREEN_APP_HTML = """
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body, html { width: 100vw; height: 100vh; overflow: hidden; background: #0b0b0d; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #e8e6e1; }
   
-  /* Official Authentic Strudel REPL Frame */
+  /* Official Built Strudel REPL Frame (Loaded from local built dist with full top bar) */
   #strudel-repl-frame {
     width: 100vw;
     height: 100vh;
@@ -264,10 +268,10 @@ FULL_SCREEN_APP_HTML = """
 </head>
 <body>
 
-<!-- Official Interactive Strudel REPL with Full Sound Synthesis Engine & Permissions -->
+<!-- Loaded directly from OUR pre-built static site (website/dist) where top-bar buttons play, stop, update, share are ALWAYS visible -->
 <iframe
   id="strudel-repl-frame"
-  src="https://strudel.cc"
+  src="/static/index.html"
   allow="autoplay *; sound-active *; audio-capture *; midi *; microphone *; speaker-selection *; clipboard-read *; clipboard-write *"
 ></iframe>
 
@@ -437,7 +441,7 @@ function loadCodeIntoStrudel(code) {
   if (!code) return;
   const hash = encodeStrudelHash(code);
   const frame = document.getElementById('strudel-repl-frame');
-  frame.src = 'https://strudel.cc/#' + hash;
+  frame.src = '/static/index.html#' + hash;
   navigator.clipboard.writeText(code);
   closeDrawer('ai');
   closeDrawer('daw');
@@ -544,7 +548,7 @@ function testNote(ch, note) {
 
 function triggerPanic() {
   const frame = document.getElementById('strudel-repl-frame');
-  frame.src = 'https://strudel.cc/#';
+  frame.src = '/static/index.html#';
   if (navigator.requestMIDIAccess) {
     navigator.requestMIDIAccess().then(access => {
       access.outputs.forEach(out => {
@@ -609,6 +613,13 @@ with gr.Blocks(title="Strudel AI Studio", theme=gr.themes.Monochrome(), css=cust
             api_name="generate_pattern"
         )
 
-# Standard Gradio launch for Hugging Face Spaces 24/7 server keeping
+# FastApi wrapper mounting static build of official Strudel REPL at /static/
+app = gr.routes.App.create_app(demo)
+
+DIST_DIR = os.path.join(os.path.dirname(__file__), "website", "dist")
+if os.path.exists(DIST_DIR):
+    app.mount("/static", StaticFiles(directory=DIST_DIR, html=True), name="static")
+
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
