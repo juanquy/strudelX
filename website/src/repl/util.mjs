@@ -175,7 +175,7 @@ export async function shareCode(codeToShare) {
   }
 }
 
-export const isIframe = () => window.location !== window.parent.location;
+export const isIframe = () => false;
 function isCrossOriginFrame() {
   try {
     return !window.top.location.hostname;
