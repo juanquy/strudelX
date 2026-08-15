@@ -23,9 +23,7 @@ from threading import Thread
 
 MODEL_NAME = os.getenv("BASE_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
 LORA_PATH = os.getenv("LORA_PATH", "./strudel-qwen-lora")
-DATASET_PATH = os.getenv("DATASET_PATH", "./data/strudel_dataset.jsonl")
-
-os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
+DATASET_PATH = os.getenv("DATASET_PATH", "/data/strudel_dataset.jsonl" if os.path.exists("/data") else "./data/strudel_dataset.jsonl")
 
 _tokenizer = None
 _model = None
@@ -133,17 +131,23 @@ def add_to_dataset(instruction, strudel_code, genre, bpm):
         "metadata": {"genre": genre, "bpm": bpm}
     }
 
-    with open(DATASET_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-    return f"✅ Saved sample to {DATASET_PATH}! Total entries: {get_dataset_count()}"
+    try:
+        os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
+        with open(DATASET_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        return f"✅ Saved sample to {DATASET_PATH}! Total entries: {get_dataset_count()}"
+    except Exception as e:
+        return f"❌ Error saving to dataset: {str(e)}"
 
 
 def get_dataset_count():
     if not os.path.exists(DATASET_PATH):
         return 0
-    with open(DATASET_PATH, "r", encoding="utf-8") as f:
-        return sum(1 for line in f if line.strip())
+    try:
+        with open(DATASET_PATH, "r", encoding="utf-8") as f:
+            return sum(1 for line in f if line.strip())
+    except Exception:
+        return 0
 
 
 @spaces.GPU(duration=300)
