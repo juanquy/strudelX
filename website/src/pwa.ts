@@ -1,12 +1,8 @@
-// @ts-ignore
-import { registerSW } from 'virtual:pwa-register';
-
-registerSW({
-  immediate: true,
-  onRegisteredSW(swScriptUrl) {
-    // console.log('SW registered: ', swScriptUrl)
-  },
-  onOfflineReady() {
-    // console.log('PWA application ready to work offline')
-  },
-});
+// Unregister Service Workers on localhost to ensure fresh UI builds load instantly
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const registration of registrations) {
+      registration.unregister();
+    }
+  });
+}

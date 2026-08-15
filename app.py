@@ -31,30 +31,38 @@ DATASET_PATH = os.getenv("DATASET_PATH", "./data/strudel_dataset.jsonl")
 
 os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
 
-print(f"📦 Loading tokenizer for {MODEL_NAME}...")
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-if tokenizer.pad_token is None:
-    tokenizer.pad_token = tokenizer.eos_token
+_tokenizer = None
+_model = None
 
-print(f"🧠 Loading base weights for {MODEL_NAME} on CPU...")
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_NAME,
-    torch_dtype=torch.float16,
-    low_cpu_mem_usage=True,
-    trust_remote_code=True,
-    device_map="cpu"
-)
+def get_tokenizer():
+    global _tokenizer
+    if _tokenizer is None:
+        print(f"📦 Loading tokenizer for {MODEL_NAME}...")
+        _tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+        if _tokenizer.pad_token is None:
+            _tokenizer.pad_token = _tokenizer.eos_token
+    return _tokenizer
 
-if os.path.exists(LORA_PATH):
-    print(f"🔗 Loading LoRA adapter from {LORA_PATH}...")
-    try:
-        from peft import PeftModel
-        model = PeftModel.from_pretrained(model, LORA_PATH)
-        model = model.merge_and_unload()
-    except Exception as e:
-        print(f"⚠️ LoRA load notice: {e}")
-
-model.eval()
+def get_model():
+    global _model
+    if _model is None:
+        print(f"🧠 Lazy loading base weights for {MODEL_NAME}...")
+        _model = AutoModelForCausalLM.from_pretrained(
+            MODEL_NAME,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            trust_remote_code=True,
+            device_map="auto" if torch.cuda.is_available() else "cpu"
+        )
+        if os.path.exists(LORA_PATH):
+            try:
+                from peft import PeftModel
+                _model = PeftModel.from_pretrained(_model, LORA_PATH)
+                _model = _model.merge_and_unload()
+            except Exception as e:
+                print(f"⚠️ LoRA load notice: {e}")
+        _model.eval()
+    return _model
 
 SYSTEM_PROMPT = """You are Strudel AI, a master live-coding music assistant and algorithmic pattern engineer.
 You help music producers and live-coders write beautiful, rhythmically intricate, and syntactically correct Strudel patterns.
@@ -69,6 +77,9 @@ Guidelines:
 @spaces.GPU(duration=60)
 def generate_strudel_code(prompt, current_code="", genre="Progressive House", bpm=130, temperature=0.7, max_tokens=1024):
     """ZeroGPU accelerated generation function."""
+    tokenizer = get_tokenizer()
+    model = get_model()
+
     if torch.cuda.is_available():
         model.to("cuda")
 
@@ -153,6 +164,9 @@ def run_lora_finetuning(epochs, batch_size, learning_rate, lora_r):
         from transformers import TrainingArguments
 
         print(f"🔥 Starting ZeroGPU LoRA Fine-Tuning on {count} dataset samples...")
+
+        tokenizer = get_tokenizer()
+        model = get_model()
 
         train_dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
 
