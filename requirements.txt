@@ -1,5 +1,5 @@
 spaces
-gradio
+gradio==4.44.0
 transformers
 accelerate
 datasets
