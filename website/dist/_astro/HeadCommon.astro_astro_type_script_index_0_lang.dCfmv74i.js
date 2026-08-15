@@ -1,1 +1,0 @@
-import{i as t,c as i}from"./index.DfAA5c9E.js";import"./index.CVlEDdE1.js";import"./index.BouPzbRN.js";import"./_commonjsHelpers.BosuxZz1.js";t(i.get().theme);const e=()=>{document.documentElement.style.setProperty("--app-height",`${window.innerHeight-1}px`)};typeof window<"u"&&(window.addEventListener("resize",e),e());
