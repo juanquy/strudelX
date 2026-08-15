@@ -1,8 +1,7 @@
 spaces
-gradio>=5.16.0
-huggingface_hub>=0.26.0
-torch>=2.2.0
-transformers>=4.45.0
-peft>=0.12.0
-accelerate>=0.34.0
-bitsandbytes>=0.43.0
+gradio
+transformers
+accelerate
+datasets
+trl
+peft

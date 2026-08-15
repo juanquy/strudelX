@@ -18,9 +18,6 @@ import re
 import json
 import torch
 import gradio as gr
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from threading import Thread
 
@@ -297,28 +294,4 @@ with gr.Blocks(title="Strudel AI Studio & Training Backend", theme=gr.themes.Mon
                 outputs=train_status
             )
 
-# Create FastAPI app and mount Gradio app so both REST endpoint /api/generate_pattern and Gradio UI work natively
-fastapi_app = FastAPI()
-
-fastapi_app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@fastapi_app.post("/api/generate_pattern")
-async def api_generate_pattern(req: Request):
-    try:
-        data = await req.json()
-        prompt = data.get("prompt", "")
-        current_code = data.get("current_code", "")
-        genre = data.get("genre", "Progressive House")
-        bpm = data.get("bpm", 130)
-        code = generate_strudel_code(prompt, current_code, genre, bpm)
-        return JSONResponse({"code": code, "data": [code]})
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
-
-app = gr.mount_gradio_app(fastapi_app, demo, path="/")
+demo.queue().launch()
