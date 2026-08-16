@@ -20,8 +20,9 @@ jobs:
           HF_SPACE_URL: ${{ secrets.HF_SPACE_URL }}
         run: |
           if [ -z "$HF_TOKEN" ]; then
-            echo "::error::Missing secret 'HF_TOKEN'. Please add your Hugging Face write token to GitHub Secrets at: https://github.com/juanquy/strudelX/settings/secrets/actions"
-            exit 1
+            echo "::warning::Secret 'HF_TOKEN' is not configured in GitHub Secrets. Skipping Hugging Face Space sync."
+            echo "ℹ️ To enable auto-sync, add 'HF_TOKEN' (your Hugging Face write token) at: https://github.com/juanquy/strudelX/settings/secrets/actions"
+            exit 0
           fi
 
           git config user.name "github-actions[bot]"
