@@ -1,7 +1,6 @@
-spaces
-gradio==4.44.0
 transformers
 accelerate
 datasets
 trl
 peft
+sentencepiece

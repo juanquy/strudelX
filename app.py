@@ -1,22 +1,8 @@
-# IMPORTANT: 'import spaces' MUST be the very first line for Hugging Face ZeroGPU
-try:
-    import spaces
-    HAS_ZEROGPU = True
-except ImportError:
-    HAS_ZEROGPU = False
-    class spaces:
-        @staticmethod
-        def GPU(fn=None, duration=60):
-            def decorator(func):
-                return func
-            if fn is not None:
-                return fn
-            return decorator
-
+import spaces
+import torch
 import os
 import re
 import json
-import torch
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from threading import Thread
@@ -25,38 +11,28 @@ MODEL_NAME = os.getenv("BASE_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
 LORA_PATH = os.getenv("LORA_PATH", "./strudel-qwen-lora")
 DATASET_PATH = os.getenv("DATASET_PATH", "/data/strudel_dataset.jsonl" if os.path.exists("/data") else "./data/strudel_dataset.jsonl")
 
-_tokenizer = None
-_model = None
+print(f"📦 Loading tokenizer for {MODEL_NAME}...")
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
 
-def get_tokenizer():
-    global _tokenizer
-    if _tokenizer is None:
-        print(f"📦 Loading tokenizer for {MODEL_NAME}...")
-        _tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-        if _tokenizer.pad_token is None:
-            _tokenizer.pad_token = _tokenizer.eos_token
-    return _tokenizer
+print(f"🧠 Loading base model for {MODEL_NAME} with ZeroGPU cuda allocation...")
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_NAME,
+    torch_dtype=torch.bfloat16,
+    trust_remote_code=True,
+    low_cpu_mem_usage=True
+).to("cuda")
 
-def get_model():
-    global _model
-    if _model is None:
-        print(f"🧠 Lazy loading base weights for {MODEL_NAME}...")
-        _model = AutoModelForCausalLM.from_pretrained(
-            MODEL_NAME,
-            torch_dtype=torch.float16,
-            low_cpu_mem_usage=True,
-            trust_remote_code=True,
-            device_map="auto" if torch.cuda.is_available() else "cpu"
-        )
-        if os.path.exists(LORA_PATH):
-            try:
-                from peft import PeftModel
-                _model = PeftModel.from_pretrained(_model, LORA_PATH)
-                _model = _model.merge_and_unload()
-            except Exception as e:
-                print(f"⚠️ LoRA load notice: {e}")
-        _model.eval()
-    return _model
+if os.path.exists(LORA_PATH):
+    try:
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, LORA_PATH)
+        model = model.merge_and_unload()
+    except Exception as e:
+        print(f"⚠️ LoRA load notice: {e}")
+
+model.eval()
 
 SYSTEM_PROMPT = """You are Strudel AI, a master live-coding music assistant and algorithmic pattern engineer.
 You help music producers and live-coders write beautiful, rhythmically intricate, and syntactically correct Strudel patterns.
@@ -71,12 +47,6 @@ Guidelines:
 @spaces.GPU(duration=60)
 def generate_strudel_code(prompt, current_code="", genre="Progressive House", bpm=130, temperature=0.7, max_tokens=1024):
     """ZeroGPU accelerated generation function."""
-    tokenizer = get_tokenizer()
-    model = get_model()
-
-    if torch.cuda.is_available():
-        model.to("cuda")
-
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     if current_code and str(current_code).strip():
@@ -165,9 +135,6 @@ def run_lora_finetuning(epochs, batch_size, learning_rate, lora_r):
 
         print(f"🔥 Starting ZeroGPU LoRA Fine-Tuning on {count} dataset samples...")
 
-        tokenizer = get_tokenizer()
-        model = get_model()
-
         train_dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
 
         def format_chat(sample):
@@ -179,9 +146,6 @@ def run_lora_finetuning(epochs, batch_size, learning_rate, lora_r):
             return {"text": tokenizer.apply_chat_template(messages, tokenize=False)}
 
         train_dataset = train_dataset.map(format_chat)
-
-        if torch.cuda.is_available():
-            model.to("cuda")
 
         lora_config = LoraConfig(
             r=int(lora_r),
