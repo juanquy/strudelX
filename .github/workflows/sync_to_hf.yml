@@ -9,21 +9,44 @@ jobs:
   sync-to-hub:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: true
 
       - name: Push to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE_URL: ${{ secrets.HF_SPACE_URL }}
         run: |
-          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE_URL" ]; then
-            echo "Secrets HF_TOKEN and HF_SPACE_URL are required in GitHub Secrets."
+          if [ -z "$HF_TOKEN" ]; then
+            echo "❌ Error: HF_TOKEN is required in GitHub Secrets."
             exit 1
           fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote add space "https://juanquy:$HF_TOKEN@$HF_SPACE_URL" || true
-          git push space main --force
+
+          # Determine Space target URL cleanly
+          TARGET_URL="${HF_SPACE_URL:-huggingface.co/spaces/juanquy/strudelx.git}"
+          TARGET_URL="${TARGET_URL#https://}"
+          TARGET_URL="${TARGET_URL#http://}"
+          if [[ "$TARGET_URL" != *.git ]]; then
+            TARGET_URL="${TARGET_URL}.git"
+          fi
+
+          # Create a clean orphan branch containing ONLY essential Space runtime files
+          git branch -D hf-space 2>/dev/null || true
+          git checkout --orphan hf-space
+          git rm -rf --cached . 2>/dev/null || true
+          git reset 2>/dev/null || true
+
+          # Stage only lightweight ZeroGPU files
+          git add app.py README.md requirements.txt
+
+          git commit -m "Auto-sync ZeroGPU AI Backend from GitHub Actions"
+
+          # Push orphan branch to Hugging Face Space main
+          git remote remove space 2>/dev/null || true
+          git remote add space "https://juanquy:${HF_TOKEN}@${TARGET_URL}"
+          git push space hf-space:main --force
