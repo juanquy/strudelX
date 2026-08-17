@@ -66,39 +66,64 @@ export default function AiCopilotTab({ context }) {
 
     try {
       abortControllerRef.current = new AbortController();
-      const origin = window.location.origin;
-      const targetApiUrl = (origin.includes('localhost') || origin.includes('127.0.0.1') || !origin.includes('hf.space'))
-        ? `${hfEndpoint}/api/generate_pattern`
-        : `${origin}/api/generate_pattern`;
+      const baseUrl = hfEndpoint.replace(/\/+$/, '');
 
-      const res = await fetch(targetApiUrl, {
+      // 1. Initiate job with Gradio 5 /gradio_api/call/generate_pattern
+      const postRes = await fetch(`${baseUrl}/gradio_api/call/generate_pattern`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt,
-          current_code: currentCode,
-          genre,
-          bpm,
-          temperature,
+          data: [prompt, currentCode, genre, bpm]
         }),
         signal: abortControllerRef.current.signal,
       });
 
-      if (!res.ok) {
-        throw new Error(`API returned HTTP ${res.status}: ${res.statusText}`);
+      if (!postRes.ok) {
+        throw new Error(`Gradio API returned HTTP ${postRes.status}: ${postRes.statusText}`);
       }
 
-      const data = await res.json();
-      const codeResult = data.code || (Array.isArray(data.data) ? data.data[0] : JSON.stringify(data));
+      const postData = await postRes.json();
+      if (!postData.event_id) {
+        throw new Error('No event_id returned from Gradio endpoint');
+      }
+
+      setStatusMsg('🧠 Generating AI pattern on NVIDIA ZeroGPU...');
+
+      // 2. Read SSE stream result
+      const streamRes = await fetch(`${baseUrl}/gradio_api/call/generate_pattern/${postData.event_id}`, {
+        signal: abortControllerRef.current.signal,
+      });
+
+      if (!streamRes.ok) {
+        throw new Error(`Gradio SSE stream failed with HTTP ${streamRes.status}`);
+      }
+
+      const streamText = await streamRes.text();
+      const dataLines = streamText.split('\n').filter(line => line.startsWith('data: '));
+      let codeResult = '';
+      for (const line of dataLines) {
+        try {
+          const parsed = JSON.parse(line.slice(6));
+          if (Array.isArray(parsed) && parsed[0]) {
+            codeResult = parsed[0];
+          }
+        } catch (e) {
+          // ignore non-json SSE lines
+        }
+      }
+
+      if (!codeResult) {
+        throw new Error('No code received from ZeroGPU stream');
+      }
+
       cleanAndSetCode(codeResult);
-      setStatusMsg('✅ Generation complete!');
+      setStatusMsg('✅ Generation complete from ZeroGPU cloud model!');
     } catch (err) {
       if (err.name === 'AbortError') {
         setStatusMsg('⏹️ Generation stopped.');
       } else {
-        console.warn('[AiCopilot] API call failed:', err);
-        setStatusMsg(`⚠️ Note: ZeroGPU Space is warming up or CORS policy is applying. Trying direct code synthesis...`);
-        // Provide immediate fallback response if API is sleeping/booting
+        console.warn('[AiCopilot] Cloud API call failed:', err);
+        setStatusMsg(`⚠️ Cloud backend is offline or waking up. Switched to instant algorithmic engine.`);
         generateLocalFallback();
       }
     } finally {
